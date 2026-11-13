@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>UK Fuel Map – Admin</title>
+<style>
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:#1d232b; background:#eef1f4; }
+  main { max-width:640px; margin:0 auto; padding:18px 14px 40px; }
+  h1 { font-size:22px; margin:6px 0 4px; }
+  .sub { color:#5a6572; font-size:14px; margin:0 0 16px; }
+  section { background:#fff; border-radius:12px; padding:14px 16px; margin:12px 0; box-shadow:0 1px 4px #0001; }
+  h2 { font-size:16px; margin:0 0 6px; }
+  p, li { font-size:14px; line-height:1.45; }
+  label.file { display:block; border:2px dashed #b9c3cf; border-radius:10px; padding:14px; text-align:center; cursor:pointer; font-size:14px; }
+  label.file.ready { border-color:#1e9e4a; background:#f1fbf4; }
+  input[type=file] { display:none; }
+  input[type=password], input[type=text] { width:100%; box-sizing:border-box; padding:9px 10px; font-size:15px; border:1px solid #c5ccd5; border-radius:8px; }
+  button { font:inherit; font-size:15px; padding:10px 14px; border-radius:9px; border:0; background:#1e6fd9; color:#fff; cursor:pointer; }
+  button.secondary { background:#e6ebf0; color:#1d232b; }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  #log { white-space:pre-wrap; font:13px/1.5 ui-monospace, Consolas, monospace; background:#f6f8fa; border-radius:8px; padding:10px; min-height:20px; }
+  .ok { color:#1e7a3c; } .err { color:#b42318; }
+  a { color:#1e6fd9; }
+  .muted { color:#6b7684; font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>UK Fuel Map – Admin</h1>
+  <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
+
+  <section>
+    <h2>1. Get the latest prices</h2>
+    <p>Fuel Finder publishes a new file twice a day. Open their page and click <b>Download the CSV file</b>:</p>
+    <p><a href="https://www.developer.fuel-finder.service.gov.uk/fuel-finder/access-latest-fuelprices" target="_blank" rel="noopener">Open Fuel Finder download page ↗</a></p>
+  </section>
+
+  <section>
+    <h2>2. Choose files to publish</h2>
+    <label class="file" id="ffLabel"><input type="file" id="ffFile" accept=".csv,text/csv">
+      <b>Fuel Finder CSV</b><br><span class="muted" id="ffName">Tap to choose the UpdatedFuelPrice-….csv file</span></label>
+    <div style="height:10px"></div>
+    <label class="file" id="ukLabel"><input type="file" id="ukFile" accept=".csv,text/csv">
+      <b>UK Fuels list</b> (optional)<br><span class="muted" id="ukName">CSV with a Postcode column – Site name, Surcharge and HGV columns optional</span></label>
+    <p class="muted">You can publish either file on its own – the other one stays as it is.</p>
+  </section>
+
+  <section>
+    <h2>3. Publish</h2>
+    <div id="keyBox">
+      <p>Admin key (your GitHub access key). It's remembered on this device only.</p>
+      <input type="password" id="key" placeholder="github_pat_…" autocomplete="off">
+    </div>
+    <div class="row">
+      <button id="publish" disabled>Publish to the map</button>
+      <button class="secondary" id="forget" hidden>Forget admin key on this device</button>
+    </div>
+    <p id="log"></p>
+  </section>
+
+  <p class="muted">The map updates about a minute after publishing. Data: GOV.UK Fuel Finder (Open Government Licence v3.0).</p>
+</main>
+
+<script src="convert.js"></script>
+<script>
+(function () {
+  "use strict";
+  const OWNER = "harries2000-prog", REPO = "uk-fuel-map", BRANCH = "main";
+  const KEY_LS = "fuelmap-admin-key";
+  const $ = id => document.getElementById(id);
+  let ffFile = null, ukFile = null;
+
+  const log = (msg, cls) => { const el = $("log"); el.innerHTML += (el.innerHTML ? "\n" : "") + (cls ? `<span class="${cls}">${msg}</span>` : msg); };
+  const getKey = () => { try { return localStorage.getItem(KEY_LS) || ""; } catch (e) { return ""; } };
+  function refreshKeyUI() {
+    const k = getKey();
+    $("keyBox").hidden = !!k; $("forget").hidden = !k;
+    $("publish").disabled = !(ffFile || ukFile);
+  }
+
+  function pick(input, label, nameEl, setter) {
+    input.addEventListener("change", () => {
+      const f = input.files[0]; setter(f || null);
+      label.classList.toggle("ready", !!f);
+      if (f) nameEl.textContent = f.name + " (" + Math.round(f.size / 1024) + " KB)";
+      refreshKeyUI();
+    });
+  }
+  pick($("ffFile"), $("ffLabel"), $("ffName"), f => ffFile = f);
+  pick($("ukFile"), $("ukLabel"), $("ukName"), f => ukFile = f);
+  $("forget").onclick = () => { try { localStorage.removeItem(KEY_LS); } catch (e) {} refreshKeyUI(); };
+
+  // ---- GitHub (used only as storage for the site) ----
+  async function gh(key, method, path, body) {
+    const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + path, {
+      method, headers: { "Authorization": "Bearer " + key, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!r.ok) {
+      let msg = ""; try { msg = (await r.json()).message || ""; } catch (e) {}
+      const err = new Error(r.status === 401 ? "The admin key was rejected (expired or mistyped)." :
+        r.status === 403 || r.status === 404 ? "The admin key doesn't have permission to write to the map (" + r.status + " " + msg + ")." :
+        "GitHub error " + r.status + " " + msg);
+      err.status = r.status; throw err;
+    }
+    return r.json();
+  }
+  function b64(str) {
+    const bytes = new TextEncoder().encode(str); let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  async function commitFiles(key, files, message) {
+    const ref = await gh(key, "GET", "/git/ref/heads/" + BRANCH);
+    const base = await gh(key, "GET", "/git/commits/" + ref.object.sha);
+    const tree = [];
+    for (const f of files) {
+      log("Uploading " + f.path + "…");
+      const blob = await gh(key, "POST", "/git/blobs", { content: b64(f.content), encoding: "base64" });
+      tree.push({ path: f.path, mode: "100644", type: "blob", sha: blob.sha });
+    }
+    const t = await gh(key, "POST", "/git/trees", { base_tree: base.tree.sha, tree });
+    const c = await gh(key, "POST", "/git/commits", { message, tree: t.sha, parents: [ref.object.sha] });
+    await gh(key, "PATCH", "/git/refs/heads/" + BRANCH, { sha: c.sha });
+  }
+
+  $("publish").onclick = async () => {
+    $("log").innerHTML = "";
+    let key = getKey() || $("key").value.trim();
+    if (!key) { log("Enter your admin key first.", "err"); return; }
+    $("publish").disabled = true;
+    try {
+      const files = [], what = [];
+      if (ffFile) {
+        log("Reading " + ffFile.name + "…");
+        const data = FuelMap.convertFuelFinder(await ffFile.text(), ffFile.name);
+        log("Found " + data.count.toLocaleString() + " stations" + (data.skipped ? " (" + data.skipped + " skipped)" : "") + ".");
+        files.push({ path: "docs/data/stations.json", content: JSON.stringify(data) });
+        what.push("prices" + (data.published ? " published " + data.published.replace("T", " ") : ""));
+      }
+      if (ukFile) {
+        const text = await ukFile.text();
+        const list = FuelMap.readUkFuelsList(text);
+        if (!list.hasPostcode) throw new Error("The UK Fuels list needs a heading row with a Postcode column.");
+        log("UK Fuels list: " + list.rows.length + " sites.");
+        files.push({ path: "docs/ukfuels.csv", content: text });
+        what.push("UK Fuels list");
+      }
+      await commitFiles(key, files, "Update " + what.join(" + "));
+      try { localStorage.setItem(KEY_LS, key); } catch (e) {}
+      $("key").value = "";
+      log("✓ Published. The map will show it in about a minute.", "ok");
+    } catch (e) {
+      log("✗ " + e.message, "err");
+      if (e.status === 401) { try { localStorage.removeItem(KEY_LS); } catch (x) {} }
+    } finally { refreshKeyUI(); }
+  };
+
+  // Show what's currently on the map
+  fetch("data/stations.json?v=" + Date.now()).then(r => r.ok ? r.json() : null).then(d => {
+    $("current").textContent = d ? "Map currently has " + d.count.toLocaleString() + " stations" +
+      (d.published ? ", Fuel Finder file from " + new Date(d.published).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "") : "No price data published yet.";
+  }).catch(() => $("current").textContent = "No price data published yet.");
+  refreshKeyUI();
+})();
+</script>
+</body>
+</html>
