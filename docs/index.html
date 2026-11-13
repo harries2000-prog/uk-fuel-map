@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UK Fuel Map – Atlantis Transport</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root { --green:#1e9e4a; --amber:#f0a020; --red:#d63a2f; --grey:#8a8f98; --ink:#1d232b; --panel:#ffffffee; }
+  html, body { margin:0; height:100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); }
+  #map { position:absolute; inset:0; background:#dfe6ec; }
+  .panel { position:absolute; z-index:1000; background:var(--panel); border-radius:10px;
+           box-shadow:0 2px 10px #0003; padding:10px 12px; font-size:14px; }
+  #top { top:10px; left:54px; right:10px; max-width:460px; display:flex; gap:6px; align-items:center; }
+  #search { flex:1; min-width:0; padding:8px 10px; border:1px solid #ccd; border-radius:8px; font-size:15px; }
+  button { font:inherit; padding:7px 10px; border-radius:8px; border:1px solid #ccd; background:#fff; cursor:pointer; }
+  button:hover { background:#f1f4f7; }
+  #legend { bottom:22px; left:10px; max-width:260px; }
+  #legend h1 { font-size:15px; margin:0 0 6px; }
+  #legend label { display:flex; align-items:center; gap:7px; margin:4px 0; cursor:pointer; }
+  .dot { width:12px; height:12px; border-radius:50%; display:inline-block; border:1.5px solid #fff; box-shadow:0 0 0 1px #0004; flex:none; }
+  .count { margin-left:auto; color:#667; font-variant-numeric: tabular-nums; }
+  #meta { font-size:12px; color:#556; margin-top:6px; line-height:1.4; }
+  #listinfo { font-size:12px; margin-top:6px; }
+  #listinfo a { color:#0b62c4; cursor:pointer; }
+  #status { top:60px; left:54px; right:10px; max-width:460px; display:none; }
+  .pop h3 { margin:0 0 2px; font-size:15px; }
+  .pop .sub { color:#556; font-size:12px; margin-bottom:6px; }
+  .pop table { border-collapse:collapse; width:100%; font-size:13px; }
+  .pop td { padding:2px 4px; border-bottom:1px solid #eee; }
+  .pop td:last-child { text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .pop .diesel td { font-weight:700; font-size:15px; }
+  .tag { display:inline-block; font-size:11px; padding:1px 6px; border-radius:9px; background:#eef1f4; margin:2px 2px 0 0; }
+  .tag.g { background:#d9f2e2; } .tag.a { background:#fdeccc; } .tag.r { background:#f9dcd9; }
+  .pop .links { margin-top:6px; font-size:13px; }
+  #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
+  #unmatched li { font-size:13px; }
+  @media (max-width:600px){ #legend{ font-size:13px; max-width:210px; } #top{ left:50px; } }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="top" class="panel">
+  <input id="search" type="search" placeholder="Find town, postcode or station…" autocomplete="off">
+  <button id="locate" title="Show my location">📍</button>
+</div>
+<div id="status" class="panel"></div>
+
+<div id="legend" class="panel">
+  <h1>UK fuel stations</h1>
+  <label><input type="checkbox" data-cat="green" checked><span class="dot" style="background:var(--green)"></span>Takes UK Fuels<span class="count" id="c-green"></span></label>
+  <label><input type="checkbox" data-cat="amber" checked><span class="dot" style="background:var(--amber)"></span>Not on UK Fuels list<span class="count" id="c-amber"></span></label>
+  <label><input type="checkbox" data-cat="red" checked><span class="dot" style="background:var(--red)"></span>No HGVs<span class="count" id="c-red"></span></label>
+  <label><input type="checkbox" data-cat="grey"><span class="dot" style="background:var(--grey)"></span>Temporarily closed<span class="count" id="c-grey"></span></label>
+  <label><input type="checkbox" id="adblueOnly"> Only sites with AdBlue pumps</label>
+  <div id="listinfo"></div>
+  <div id="meta">Loading…</div>
+</div>
+
+<div id="unmatched" class="panel"></div>
+<input type="file" id="fileIn" accept=".csv,text/csv" hidden>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  "use strict";
+  const COLORS = { green:"#1e9e4a", amber:"#f0a020", red:"#d63a2f", grey:"#8a8f98" };
+  const UK_BOUNDS = L.latLngBounds([49.6, -9.2], [61.1, 2.4]);
+  const FUEL_NAMES = {
+    B7_STANDARD:"Diesel", B7S:"Diesel", B7:"Diesel", B7_PREMIUM:"Premium diesel", B7P:"Premium diesel",
+    B10:"Diesel B10", HVO:"HVO", E10:"Unleaded (E10)", E5:"Super unleaded (E5)"
+  };
+  const FUEL_ORDER = ["B7_STANDARD","B7S","B7","B7_PREMIUM","B7P","B10","HVO","E10","E5"];
+  const AMENITY_NAMES = {
+    adblue_pumps:"AdBlue pumps", adblue_packaged:"AdBlue (cans)", lpg_pumps:"LPG", car_wash:"Car wash",
+    customer_toilets:"Toilets", water_filling:"Water", air_pump_or_screenwash:"Air/screenwash", twenty_four_hour_fuel:"24h fuel"
+  };
+  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const LS_KEY = "ukfuels-list-override";
+
+  const map = L.map("map", {
+    preferCanvas: true, maxBounds: UK_BOUNDS, maxBoundsViscosity: 0.9, minZoom: 5, zoomSnap: 0.5
+  }).fitBounds([[49.9, -8.2], [60.9, 1.8]]);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Prices: GOV.UK Fuel Finder (OGL v3.0)'
+  }).addTo(map);
+
+  const canvas = L.canvas({ padding: 0.3, tolerance: 6 });
+  const layer = L.layerGroup().addTo(map);
+  let stations = [], markers = [], listRows = [], listSource = "", meta = {};
+
+  // ---------- helpers ----------
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const normPc = s => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const title = s => String(s || "").toLowerCase().replace(/\b([a-z])/g, m => m.toUpperCase());
+  function status(msg, ms) {
+    const el = $("status"); el.innerHTML = msg; el.style.display = msg ? "block" : "none";
+    if (ms) setTimeout(() => { if (el.innerHTML === msg) el.style.display = "none"; }, ms);
+  }
+
+  // ---------- CSV (UK Fuels list) ----------
+  function parseCSV(text) {
+    const rows = []; let row = [], cell = "", q = false;
+    text = text.replace(/^﻿/, "");
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ",") { row.push(cell); cell = ""; }
+      else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell); cell = ""; if (row.some(c => c.trim() !== "")) rows.push(row); row = [];
+      } else cell += ch;
+    }
+    row.push(cell); if (row.some(c => c.trim() !== "")) rows.push(row);
+    return rows;
+  }
+  function findCol(headers, tests) {
+    const h = headers.map(x => x.toLowerCase().trim());
+    for (const t of tests) { const i = h.findIndex(x => t.test(x)); if (i >= 0) return i; }
+    return -1;
+  }
+  function yesNo(v) {
+    v = String(v || "").trim().toLowerCase();
+    if (!v) return null;
+    if (/^(n|no|false|0|x|none|not accepted|no hgv.*|hgv not.*|not suitable.*|car.*only|cars? only)$/.test(v)) return false;
+    if (/^(y|yes|true|1|✓|accepted|hgv|hgv ok|ok|suitable)$/.test(v)) return true;
+    if (/\bno\b|not/.test(v)) return false;
+    return null;
+  }
+  function readList(text) {
+    const rows = parseCSV(text);
+    if (rows.length < 2) return [];
+    const head = rows[0];
+    const iPc = findCol(head, [/post\s*code/, /^pc$/, /postcode/, /post/]);
+    const iId = findCol(head, [/node.?id/, /fuel.?finder.?id/]);
+    const iName = findCol(head, [/site.?name/, /^name$/, /station/, /site/, /name/]);
+    const iSur = findCol(head, [/surcharge/, /pence|ppl|p\/l/, /price/, /charge/]);
+    const iHgv = findCol(head, [/hgv/, /lorry|truck|lgv/]);
+    const out = [];
+    for (const r of rows.slice(1)) {
+      const rec = {
+        pc: iPc >= 0 ? normPc(r[iPc]) : "", id: iId >= 0 ? (r[iId] || "").trim() : "",
+        name: iName >= 0 ? (r[iName] || "").trim() : "", sur: iSur >= 0 ? (r[iSur] || "").trim() : "",
+        hgv: iHgv >= 0 ? yesNo(r[iHgv]) : null, raw: r
+      };
+      if (rec.pc || rec.id) out.push(rec);
+    }
+    return out;
+  }
+
+  // ---------- matching & colouring ----------
+  function applyList() {
+    const byPc = new Map(), byId = new Map();
+    listRows.forEach(r => {
+      r.matched = 0;
+      if (r.id) byId.set(r.id, r);
+      if (r.pc) { if (!byPc.has(r.pc)) byPc.set(r.pc, []); byPc.get(r.pc).push(r); }
+    });
+    for (const s of stations) {
+      s.uk = byId.get(s.id) || null;
+      if (!s.uk) {
+        const cands = byPc.get(normPc(s.pc));
+        if (cands && cands.length) {
+          // several list rows on one postcode: pick the one whose name best matches
+          s.uk = cands.length === 1 ? cands[0] : cands.slice().sort((a, b) => nameScore(b.name, s) - nameScore(a.name, s))[0];
+        }
+      }
+      if (s.uk) s.uk.matched++;
+      s.cat = s.tc ? "grey" : s.uk ? (s.uk.hgv === false ? "red" : "green") : "amber";
+    }
+    const unmatched = listRows.filter(r => !r.matched);
+    $("listinfo").innerHTML = listRows.length
+      ? `UK Fuels list: <b>${listRows.length}</b> sites (${esc(listSource)})` +
+        (unmatched.length ? ` · <a id="showUn">${unmatched.length} not matched</a>` : "") +
+        `<br><a id="loadList">Load a different list</a>` + (listSource === "uploaded on this device" ? ` · <a id="clearList">use website list</a>` : "")
+      : `No UK Fuels list loaded yet · <a id="loadList">Load list (CSV)</a>`;
+    const ll = $("loadList"); if (ll) ll.onclick = () => $("fileIn").click();
+    const cl = $("clearList"); if (cl) cl.onclick = () => { try { localStorage.removeItem(LS_KEY); } catch (e) {} loadRepoList().then(() => { applyList(); draw(); }); };
+    const su = $("showUn"); if (su) su.onclick = () => showUnmatched(unmatched);
+  }
+  function nameScore(name, s) {
+    const a = new Set(String(name).toLowerCase().split(/\W+/).filter(w => w.length > 2));
+    const b = (s.n + " " + s.b + " " + s.a).toLowerCase();
+    let n = 0; a.forEach(w => { if (b.includes(w)) n++; }); return n;
+  }
+  function showUnmatched(rows) {
+    const el = $("unmatched");
+    el.innerHTML = `<b>Sites on your list that didn't match a Fuel Finder station</b>
+      <p style="font-size:13px;margin:6px 0">Usually a postcode that differs slightly. Fix the postcode in your list, or add a <code>node_id</code> column with the station's ID (shown at the bottom of each station's popup).</p>
+      <ul>${rows.map(r => `<li>${esc(r.name || "(no name)")} – ${esc(r.raw.join(", "))}</li>`).join("")}</ul>
+      <button id="closeUn">Close</button>`;
+    el.style.display = "block"; $("closeUn").onclick = () => el.style.display = "none";
+  }
+
+  // ---------- drawing ----------
+  function draw() {
+    layer.clearLayers(); markers = [];
+    const show = {}; document.querySelectorAll("[data-cat]").forEach(c => show[c.dataset.cat] = c.checked);
+    const adblue = $("adblueOnly").checked;
+    const counts = { green:0, amber:0, red:0, grey:0 };
+    // draw amber first so green/red sit on top where they overlap
+    const order = { grey:0, amber:1, green:2, red:3 };
+    const list = stations.slice().sort((a, b) => order[a.cat] - order[b.cat]);
+    for (const s of list) {
+      counts[s.cat]++;
+      if (!show[s.cat]) continue;
+      if (adblue && !(s.am || []).includes("adblue_pumps")) continue;
+      const m = L.circleMarker([s.y, s.x], {
+        renderer: canvas, radius: radiusFor(map.getZoom()), color: "#fff", weight: 1.2,
+        fillColor: COLORS[s.cat], fillOpacity: 0.95
+      });
+      m.bindPopup(() => popup(s), { maxWidth: 300 });
+      m.s = s; m.addTo(layer); markers.push(m);
+    }
+    Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
+  }
+  function radiusFor(z) { return z < 7 ? 2.5 : z < 9 ? 3.5 : z < 11 ? 5 : 7; }
+  map.on("zoomend", () => { const r = radiusFor(map.getZoom()); markers.forEach(m => m.setRadius(r)); });
+
+  function popup(s) {
+    const name = s.n || s.b || "Fuel station";
+    const brand = s.b && s.b.toLowerCase() !== (s.n || "").toLowerCase() ? s.b : "";
+    const fuels = Object.keys(s.p || {}).sort((a, b) => (FUEL_ORDER.indexOf(a) + 99) % 99 - (FUEL_ORDER.indexOf(b) + 99) % 99);
+    const rows = fuels.map(f => `<tr class="${/^B7(_STANDARD|S)?$/.test(f) ? "diesel" : ""}"><td>${esc(FUEL_NAMES[f] || f)}</td><td>${s.p[f].toFixed(1)}p</td></tr>`).join("")
+      || `<tr><td colspan="2" style="color:#889">No prices reported</td></tr>`;
+    let ukTag = "";
+    if (s.uk) {
+      ukTag = `<span class="tag ${s.cat === "red" ? "r" : "g"}">UK Fuels ✓${s.uk.sur ? " · surcharge " + esc(s.uk.sur) : ""}</span>`;
+      if (s.uk.hgv === false) ukTag += `<span class="tag r">No HGVs</span>`;
+      else if (s.uk.hgv === true) ukTag += `<span class="tag g">HGV OK</span>`;
+    } else ukTag = `<span class="tag a">Not on UK Fuels list</span>`;
+    const tags = [ukTag];
+    if (s.tc) tags.push(`<span class="tag r">Temporarily closed</span>`);
+    if (s.mw) tags.push(`<span class="tag">Motorway services</span>`);
+    if (s.sm) tags.push(`<span class="tag">Supermarket</span>`);
+    (s.am || []).forEach(a => tags.push(`<span class="tag">${esc(AMENITY_NAMES[a] || a.replace(/_/g, " "))}</span>`));
+    let hours = "";
+    if (s.h) {
+      const d = (new Date().getDay() + 6) % 7;
+      hours = `<div class="sub" style="margin-top:6px">Today (${DAYS[d]}): <b>${esc(s.h[d] || "not given")}</b></div>`;
+    }
+    const upd = s.u ? new Date(s.u + (s.u.length === 16 ? ":00Z" : "")).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "";
+    return `<div class="pop"><h3>${esc(title(name))}</h3>
+      <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div>
+      <table>${rows}</table>
+      ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
+      <div>${tags.join("")}</div>${hours}
+      <div class="links"><a href="https://www.google.com/maps/dir/?api=1&destination=${s.y},${s.x}" target="_blank" rel="noopener">Directions</a>
+      ${s.ph ? ` · ${esc(s.ph)}` : ""}</div>
+      <div class="sub" style="margin-top:6px;font-size:10px;word-break:break-all">ID ${esc(s.id)}</div></div>`;
+  }
+
+  // ---------- UK-only mask ----------
+  function addMask(feature) {
+    const g = feature.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+    const world = [[-89, -179], [-89, 179], [89, 179], [89, -179]];
+    const holes = polys.map(p => p[0].map(c => [c[1], c[0]]));
+    const mask = L.polygon([world, ...holes], {
+      renderer: L.svg(), stroke: false, fillColor: "#e9edf1", fillOpacity: 0.85, interactive: false
+    });
+    const outline = L.polygon(holes, { renderer: L.svg(), color: "#5b6b7c", weight: 1, fill: false, interactive: false });
+    function sync() {
+      const z = map.getZoom();
+      if (z < 10) { mask.addTo(map); outline.addTo(map); } else { mask.remove(); outline.remove(); }
+    }
+    map.on("zoomend", sync); sync();
+  }
+
+  // ---------- search & locate ----------
+  $("search").addEventListener("keydown", async e => {
+    if (e.key !== "Enter") return;
+    const q = e.target.value.trim(); if (!q) return;
+    const nq = normPc(q);
+    // 1) station postcode / name / town in our own data
+    let hits = stations.filter(s => normPc(s.pc).startsWith(nq) && nq.length >= 3);
+    if (!hits.length) {
+      const lq = q.toLowerCase();
+      hits = stations.filter(s => (s.n + " " + s.b + " " + s.c + " " + s.a).toLowerCase().includes(lq));
+    }
+    if (hits.length) {
+      const b = L.latLngBounds(hits.map(s => [s.y, s.x]));
+      map.fitBounds(b.pad(0.3), { maxZoom: 14 });
+      if (hits.length === 1) setTimeout(() => { const m = markers.find(m => m.s === hits[0]); if (m) m.openPopup(); }, 400);
+      status(`${hits.length} station${hits.length > 1 ? "s" : ""} found`, 2500);
+      return;
+    }
+    // 2) any UK place via OpenStreetMap
+    try {
+      status("Searching…");
+      const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&countrycodes=gb&limit=1&q=" + encodeURIComponent(q));
+      const j = await r.json();
+      if (j[0]) { map.setView([+j[0].lat, +j[0].lon], 12); status("", 0); }
+      else status("Nothing found for “" + esc(q) + "”", 3000);
+    } catch (err) { status("Search unavailable right now", 3000); }
+  });
+  let me = null;
+  $("locate").onclick = () => {
+    if (!navigator.geolocation) return status("Location isn't available in this browser", 3000);
+    status("Finding you…");
+    navigator.geolocation.getCurrentPosition(p => {
+      const ll = [p.coords.latitude, p.coords.longitude];
+      if (me) me.remove();
+      me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#1769e0", fillOpacity: 1 }).addTo(map);
+      map.setView(ll, 12); status("", 0);
+    }, () => status("Couldn't get your location", 3000), { enableHighAccuracy: true, timeout: 10000 });
+  };
+
+  // ---------- list loading ----------
+  async function loadRepoList() {
+    try {
+      const r = await fetch("ukfuels.csv?v=" + Date.now(), { cache: "no-store" });
+      if (r.ok) { listRows = readList(await r.text()); listSource = "from website"; return; }
+    } catch (e) {}
+    listRows = []; listSource = "";
+  }
+  $("fileIn").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const text = await f.text();
+    const rows = readList(text);
+    if (!rows.length) { status("Couldn't find a <b>postcode</b> column in that file. It needs a heading row with a column called Postcode.", 6000); return; }
+    listRows = rows; listSource = "uploaded on this device";
+    try { localStorage.setItem(LS_KEY, text); } catch (err) {}
+    applyList(); draw(); status(`Loaded ${rows.length} UK Fuels sites from ${esc(f.name)}`, 4000);
+    e.target.value = "";
+  });
+  document.querySelectorAll("[data-cat]").forEach(c => c.addEventListener("change", draw));
+  $("adblueOnly").addEventListener("change", draw);
+
+  // ---------- start ----------
+  (async function start() {
+    fetch("data/uk.geojson").then(r => r.ok ? r.json() : null).then(f => f && addMask(f)).catch(() => {});
+    let override = null;
+    try { override = localStorage.getItem(LS_KEY); } catch (e) {}
+    if (override) { listRows = readList(override); listSource = "uploaded on this device"; } else await loadRepoList();
+    try {
+      const r = await fetch("data/stations.json", { cache: "no-cache" });
+      if (!r.ok) throw new Error(r.status);
+      meta = await r.json();
+      stations = meta.stations || [];
+    } catch (e) {
+      $("meta").textContent = "Station data isn't available yet – the first update may still be running.";
+      applyList(); return;
+    }
+    applyList(); draw();
+    const when = new Date(meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+    $("meta").innerHTML = `${stations.length.toLocaleString()} stations · data refreshed ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
+  })();
+})();
+</script>
+</body>
+</html>
