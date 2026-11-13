@@ -320,7 +320,7 @@
       const ll = L.latLng(p.coords.latitude, p.coords.longitude);
       if (!UK_BOUNDS.contains(ll)) { if (!auto) status("You appear to be outside the UK", 3000); return; }
       if (me) me.remove();
-      me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#1769e0", fillOpacity: 1, interactive: false }).addTo(map);
+      me = L.circleMarker(ll, { renderer: canvas, radius: 8, color: "#fff", weight: 3, fillColor: "#1769e0", fillOpacity: 1, interactive: false }).addTo(map);
       map.fitBounds(ll.toBounds(32000));   // ~20 miles across
       status("", 0);
     }, () => { if (!auto) status("Couldn't get your location", 3000); }, { enableHighAccuracy: !auto, timeout: 10000, maximumAge: 300000 });
