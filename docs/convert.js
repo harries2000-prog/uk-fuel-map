@@ -156,7 +156,34 @@
   const brandKey = b => String(b || "").toUpperCase().replace(/\s+/g, " ").trim();
   const brandSlug = b => brandKey(b).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "brand";
 
-  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, normPc, brandKey, brandSlug };
+  /* Placeholder images (shown until a real one is uploaded in Admin) */
+  const xesc = s => String(s).replace(/[&<>"']/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
+  const svgUrl = svg => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  const CARD_COLOURS = ["#1f4e8c", "#0f6e5a", "#7a2e8e", "#b5452b", "#2d3a4a", "#8a6d1d", "#1d6fa3", "#5b3a29"];
+  function dummyCardImg(name) {
+    let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const col = CARD_COLOURS[h % CARD_COLOURS.length], nm = xesc(String(name).toUpperCase());
+    const fs = nm.length > 14 ? 13 : 16;
+    return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 108" width="172" height="108">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${col}"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient></defs>
+<rect width="172" height="108" rx="9" fill="${col}"/><rect width="172" height="108" rx="9" fill="url(#g)"/>
+<rect x="14" y="34" width="26" height="20" rx="3" fill="#e8c766" stroke="#a8862e" stroke-width="1"/>
+<path d="M14 44h26M27 34v20" stroke="#a8862e" stroke-width="1"/>
+<text x="14" y="24" font-family="Arial,sans-serif" font-weight="700" font-size="${fs}" fill="#fff">${nm}</text>
+<text x="14" y="78" font-family="monospace" font-size="11" fill="#fff" fill-opacity=".85">7000 0000 0000 0000</text>
+<text x="14" y="96" font-family="Arial,sans-serif" font-size="8" fill="#fff" fill-opacity=".7">SAMPLE CARD IMAGE</text>
+<text x="158" y="96" text-anchor="end" font-family="Arial,sans-serif" font-weight="700" font-size="10" fill="#fff" fill-opacity=".9">FUEL</text>
+</svg>`);
+  }
+  const GENERIC_LOGO = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120" width="240" height="120">
+<rect x="2" y="2" width="236" height="116" rx="12" fill="#f3f5f8" stroke="#b9c2cc" stroke-width="2" stroke-dasharray="7 5"/>
+<g transform="translate(26 26)" fill="#8a96a3"><rect x="0" y="0" width="40" height="68" rx="5"/><rect x="8" y="9" width="24" height="18" rx="2" fill="#f3f5f8"/>
+<path d="M40 30h10v28a5 5 0 0 0 10 0V20l-9-9" fill="none" stroke="#8a96a3" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="98" y="58" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#6b7684">BRAND</text>
+<text x="98" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#6b7684">LOGO</text>
+</svg>`);
+
+  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FuelMap = api;
 })(this);
