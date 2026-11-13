@@ -152,7 +152,11 @@
     return { rows: out, hasPostcode: iPc >= 0 || iId >= 0 };
   }
 
-  const api = { parseCSV, convertFuelFinder, readUkFuelsList, normPc };
+  /* Brand names -> logo keys: "Esso " / "ESSO" -> "ESSO" -> file "esso.png" */
+  const brandKey = b => String(b || "").toUpperCase().replace(/\s+/g, " ").trim();
+  const brandSlug = b => brandKey(b).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "brand";
+
+  const api = { parseCSV, convertFuelFinder, readUkFuelsList, normPc, brandKey, brandSlug };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FuelMap = api;
 })(this);
