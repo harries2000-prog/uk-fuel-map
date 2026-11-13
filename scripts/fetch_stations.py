@@ -30,7 +30,8 @@ def call(method, path, body=None, token=None):
     """Return (status, parsed_json). 404 is returned, not raised (API uses it for 'no more data')."""
     url = BASE + path
     data = json.dumps(body).encode() if body is not None else None
-    headers = {"Accept": "application/json", "User-Agent": "uk-fuel-map/1.0 (GitHub Actions)"}
+    headers = {"Accept": "application/json, text/plain, */*", "Accept-Language": "en-GB,en;q=0.9",
+               "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"}
     if data is not None:
         headers["Content-Type"] = "application/json"
     if token:
