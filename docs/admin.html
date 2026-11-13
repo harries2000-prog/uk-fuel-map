@@ -25,6 +25,21 @@
   .ok { color:#1e7a3c; } .err { color:#b42318; }
   a { color:#1e6fd9; }
   .muted { color:#6b7684; font-size:13px; }
+  .tabs { display:flex; gap:6px; margin:4px 0 2px; }
+  .tabs button { background:#dfe5ec; color:#1d232b; }
+  .tabs button.on { background:#1e6fd9; color:#fff; }
+  #brandSearch { margin:6px 0 8px; }
+  .brands { max-height:60vh; overflow:auto; border:1px solid #e3e8ee; border-radius:8px; }
+  .brow { display:flex; align-items:center; gap:10px; padding:6px 8px; border-bottom:1px solid #eef1f4; font-size:14px; }
+  .brow:last-child { border-bottom:0; }
+  .brow .logo { width:96px; height:48px; flex:none; display:flex; align-items:center; justify-content:center;
+                background:repeating-conic-gradient(#f1f3f6 0% 25%, #fff 0% 50%) 50%/12px 12px; border-radius:4px; font-size:11px; color:#99a; }
+  .brow .logo img { max-width:96px; max-height:48px; }
+  .brow .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .brow .n { color:#6b7684; font-size:12px; margin-left:4px; }
+  .brow.changed { background:#fff8e1; }
+  .brow button { padding:6px 10px; font-size:13px; }
+  .linkbtn { background:none !important; color:#b42318 !important; padding:6px 4px !important; }
 </style>
 </head>
 <body>
@@ -32,6 +47,9 @@
   <h1>UK Fuel Map – Admin</h1>
   <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
 
+  <div class="tabs"><button id="tabBtnData" class="on">Prices &amp; UK Fuels list</button><button id="tabBtnLogos">Brand logos</button></div>
+
+  <div id="tabData">
   <section>
     <h2>1. Get the latest prices</h2>
     <p>Fuel Finder publishes a new file twice a day. Open their page and click <b>Download the CSV file</b>:</p>
@@ -48,8 +66,21 @@
     <p class="muted">You can publish either file on its own – the other one stays as it is.</p>
   </section>
 
+  </div>
+
+  <div id="tabLogos" hidden>
   <section>
-    <h2>3. Publish</h2>
+    <h2>Brand logos</h2>
+    <p>Pick a logo for any brand. Any size works – it's fitted into a <b>240 × 120</b> box automatically.
+       Best results: a <b>PNG with a transparent background</b>, at least 240 px wide, trimmed close to the logo.</p>
+    <input type="text" id="brandSearch" placeholder="Search brands…">
+    <div class="brands" id="brandList"><p class="muted" style="padding:8px">Loading brands…</p></div>
+    <input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp">
+  </section>
+  </div>
+
+  <section>
+    <h2 id="pubTitle">3. Publish</h2>
     <div id="keyBox">
       <p>Admin key (your GitHub access key). It's remembered on this device only.</p>
       <input type="password" id="key" placeholder="github_pat_…" autocomplete="off">
@@ -72,13 +103,14 @@
   const KEY_LS = "fuelmap-admin-key";
   const $ = id => document.getElementById(id);
   let ffFile = null, ukFile = null;
+  let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
 
   const log = (msg, cls) => { const el = $("log"); el.innerHTML += (el.innerHTML ? "\n" : "") + (cls ? `<span class="${cls}">${msg}</span>` : msg); };
   const getKey = () => { try { return localStorage.getItem(KEY_LS) || ""; } catch (e) { return ""; } };
   function refreshKeyUI() {
     const k = getKey();
     $("keyBox").hidden = !!k; $("forget").hidden = !k;
-    $("publish").disabled = !(ffFile || ukFile);
+    $("publish").disabled = !(ffFile || ukFile || Object.keys(logoChanges).length);
   }
 
   function pick(input, label, nameEl, setter) {
@@ -118,8 +150,9 @@
     const base = await gh(key, "GET", "/git/commits/" + ref.object.sha);
     const tree = [];
     for (const f of files) {
+      if (f.remove) { tree.push({ path: f.path, mode: "100644", type: "blob", sha: null }); continue; }
       log("Uploading " + f.path + "…");
-      const blob = await gh(key, "POST", "/git/blobs", { content: b64(f.content), encoding: "base64" });
+      const blob = await gh(key, "POST", "/git/blobs", { content: f.b64 || b64(f.content), encoding: "base64" });
       tree.push({ path: f.path, mode: "100644", type: "blob", sha: blob.sha });
     }
     const t = await gh(key, "POST", "/git/trees", { base_tree: base.tree.sha, tree });
@@ -149,7 +182,21 @@
         files.push({ path: "docs/ukfuels.csv", content: text });
         what.push("UK Fuels list");
       }
+      const lc = Object.keys(logoChanges);
+      if (lc.length) {
+        const idx = Object.assign({}, logoIndex);
+        for (const bk of lc) {
+          const ch = logoChanges[bk], file = FuelMap.brandSlug(bk) + ".png";
+          if (ch === "remove") { if (idx[bk]) files.push({ path: "docs/logos/" + idx[bk].split("?")[0], remove: true }); delete idx[bk]; }
+          else { files.push({ path: "docs/logos/" + file, b64: ch.split(",")[1] }); idx[bk] = file + "?v=" + Date.now().toString(36); }
+        }
+        files.push({ path: "docs/logos/index.json", content: JSON.stringify(idx, null, 1) });
+        what.push(lc.length + " brand logo" + (lc.length > 1 ? "s" : ""));
+        logoIndex = idx;
+      }
+      if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
+      logoChanges = {}; renderBrands();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
       log("✓ Published. The map will show it in about a minute.", "ok");
@@ -164,6 +211,69 @@
     $("current").textContent = d ? "Map currently has " + d.count.toLocaleString() + " stations" +
       (d.published ? ", Fuel Finder file from " + new Date(d.published).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "") : "No price data published yet.";
   }).catch(() => $("current").textContent = "No price data published yet.");
+  // ---- Tabs ----
+  function showTab(which) {
+    $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos";
+    $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
+    $("pubTitle").textContent = which === "data" ? "3. Publish" : "Publish logo changes";
+    if (which === "logos" && !brands.length) loadBrands();
+  }
+  $("tabBtnData").onclick = () => showTab("data");
+  $("tabBtnLogos").onclick = () => showTab("logos");
+
+  // ---- Brand logos ----
+  async function loadBrands() {
+    try {
+      const [d, idx] = await Promise.all([
+        fetch("data/stations.json?v=" + Date.now()).then(r => r.ok ? r.json() : { stations: [] }),
+        fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      ]);
+      logoIndex = idx || {};
+      const counts = new Map();
+      for (const s of d.stations || []) { const k = FuelMap.brandKey(s.b); if (k) counts.set(k, (counts.get(k) || 0) + 1); }
+      brands = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      renderBrands();
+    } catch (e) { $("brandList").innerHTML = '<p class="err" style="padding:8px">Couldn\'t load brands – publish a Fuel Finder CSV first.</p>'; }
+  }
+  const escH = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  function renderBrands() {
+    if (!brands.length) return;
+    const q = $("brandSearch").value.trim().toUpperCase();
+    const list = brands.filter(([k]) => !q || k.includes(q)).slice(0, q ? 400 : 150);
+    $("brandList").innerHTML = list.map(([k, n]) => {
+      const ch = logoChanges[k], cur = logoIndex[k];
+      const src = ch && ch !== "remove" ? ch : (!ch && cur ? "logos/" + cur : "");
+      return `<div class="brow${ch ? " changed" : ""}" data-k="${escH(k)}">
+        <div class="logo">${src ? `<img src="${escH(src)}" alt="">` : "no logo"}</div>
+        <div class="name">${escH(k)}<span class="n">${n} site${n > 1 ? "s" : ""}</span></div>
+        <button class="secondary" data-act="up">${src ? "Change" : "Upload"}</button>
+        ${src ? '<button class="linkbtn" data-act="rm">Remove</button>' : ""}</div>`;
+    }).join("") + (q ? "" : `<p class="muted" style="padding:8px">Showing the 150 busiest brands – search to find others (${brands.length} in total).</p>`);
+  }
+  $("brandSearch").addEventListener("input", renderBrands);
+  $("brandList").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const k = b.closest(".brow").dataset.k;
+    if (b.dataset.act === "up") { logoTarget = k; $("logoFile").value = ""; $("logoFile").click(); }
+    if (b.dataset.act === "rm") { if (logoIndex[k]) logoChanges[k] = "remove"; else delete logoChanges[k]; renderBrands(); refreshKeyUI(); }
+  });
+  $("logoFile").addEventListener("change", async () => {
+    const f = $("logoFile").files[0]; if (!f || !logoTarget) return;
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const W = 240, H = 120, w = img.naturalWidth || W, h = img.naturalHeight || H;
+      const s = Math.min(W / w, H / h), dw = Math.round(w * s), dh = Math.round(h * s);
+      const c = document.createElement("canvas"); c.width = W; c.height = H;
+      const g = c.getContext("2d"); g.imageSmoothingQuality = "high";
+      g.drawImage(img, Math.round((W - dw) / 2), Math.round((H - dh) / 2), dw, dh);
+      URL.revokeObjectURL(url);
+      logoChanges[logoTarget] = c.toDataURL("image/png");
+      renderBrands(); refreshKeyUI();
+      $("log").innerHTML = ""; log(Object.keys(logoChanges).length + " logo change(s) ready – press Publish to put them on the map.");
+    } catch (e) { $("log").innerHTML = ""; log("✗ Couldn't read that image file.", "err"); }
+  });
+
   refreshKeyUI();
 })();
 </script>
