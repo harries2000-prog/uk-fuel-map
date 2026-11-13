@@ -47,6 +47,7 @@
   #cardFilter { width:100%; padding:6px 8px; font-size:14px; border:1px solid #c9d0d8; border-radius:6px; background:#fff; }
   .key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#445; margin-top:8px; }
   .key span { display:inline-flex; align-items:center; gap:4px; }
+  .key em { font-style:normal; }
   .key b { font-weight:600; color:#667; font-variant-numeric:tabular-nums; }
   #drawer label.small { display:flex; align-items:center; gap:6px; font-size:12px; color:#445; margin-top:6px; cursor:pointer; }
   .dot { width:11px; height:11px; border-radius:50%; display:inline-block; border:1.5px solid #fff; box-shadow:0 0 0 1px #0004; flex:none; }
@@ -85,6 +86,15 @@
   .tag { display:inline-block; font-size:11px; padding:1px 6px; border-radius:9px; background:#eef1f4; margin:2px 2px 0 0; }
   .tag.g { background:#d9f2e2; } .tag.a { background:#fdeccc; } .tag.r { background:#f9dcd9; }
   .pop .links { margin-top:6px; font-size:13px; }
+  .cards { border:1px solid #e3e8ee; border-radius:6px; margin:6px 0 4px; overflow:hidden; }
+  .cards .ch { display:flex; font-size:11px; font-weight:700; color:#556; background:#f3f5f8; padding:3px 8px; text-transform:uppercase; letter-spacing:.3px; }
+  .cards .ch span { margin-left:auto; }
+  .crow { display:flex; align-items:center; gap:4px; padding:3px 8px; font-size:13px; border-top:1px solid #eef1f4; }
+  .crow .cname { font-weight:600; }
+  .crow .csur { margin-left:auto; font-variant-numeric:tabular-nums; color:#1e7a3c; font-weight:600; }
+  .crow.sel { background:#eef8f1; }
+  .crow.no { background:#fff6e5; } .crow.no .csur { color:#9a6200; font-weight:500; }
+  .crow .tag { margin:0; }
   #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
   #unmatched li { font-size:13px; }
   /* ---- phones ---- */
@@ -142,16 +152,16 @@
     <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span>AdBlue</span></label>
   </div>
   <div class="lh">Fuel card</div>
-  <select id="cardFilter">
-    <option value="all">All stations</option>
-    <option value="ukf">UK Fuels sites only</option>
-    <option value="ukf-hgv">UK Fuels sites that take HGVs</option>
-  </select>
+  <select id="cardFilter"><option value="">No card selected</option></select>
+  <div id="cardOpts" hidden>
+    <label class="small"><input type="checkbox" id="onlyCard"> Only show sites that take this card</label>
+    <label class="small"><input type="checkbox" id="hideNoHgv"> Hide sites marked “no HGVs”</label>
+  </div>
   <div class="lh">Key</div>
-  <div class="key" style="margin-top:0">
-    <span><i class="dot" style="background:var(--green)"></i>UK Fuels <b id="c-green"></b></span>
-    <span><i class="dot" style="background:var(--amber)"></i>Not UK Fuels <b id="c-amber"></b></span>
-    <span><i class="dot" style="background:var(--red)"></i>No HGVs <b id="c-red"></b></span>
+  <div class="key" style="margin-top:0" id="key">
+    <span id="k-green"><i class="dot" style="background:var(--green)"></i><em id="kl-green">Takes card</em> <b id="c-green"></b></span>
+    <span id="k-amber"><i class="dot" style="background:var(--amber)"></i><em id="kl-amber">Fuel station</em> <b id="c-amber"></b></span>
+    <span id="k-red"><i class="dot" style="background:var(--red)"></i><em id="kl-red">No HGVs</em> <b id="c-red"></b></span>
   </div>
   <label class="small"><input type="checkbox" id="showClosed"> Show temporarily closed (<span id="c-grey"></span>)</label>
   <div id="listinfo"></div>
@@ -196,7 +206,8 @@
 
   const canvas = L.canvas({ padding: 0.3, tolerance: L.Browser.mobile ? 14 : 8 });
   const layer = L.layerGroup().addTo(map);
-  let stations = [], markers = [], listRows = [], meta = {}, logos = {};
+  let stations = [], markers = [], meta = {}, logos = {};
+  let cards = [];          // [{id, name, rows:[...]}] from cards/index.json + cards/<id>.csv
 
   // ---------- helpers ----------
   const $ = id => document.getElementById(id);
@@ -208,44 +219,58 @@
     if (ms) setTimeout(() => { if (el.innerHTML === msg) el.style.display = "none"; }, ms);
   }
 
-  // ---------- UK Fuels list (parsing lives in convert.js) ----------
-  const readList = text => FuelMap.readUkFuelsList(text).rows;
-
-  // ---------- matching & colouring ----------
-  function applyList() {
-    const byPc = new Map(), byId = new Map();
-    listRows.forEach(r => {
-      r.matched = 0;
-      if (r.id) byId.set(r.id, r);
-      if (r.pc) { if (!byPc.has(r.pc)) byPc.set(r.pc, []); byPc.get(r.pc).push(r); }
-    });
-    for (const s of stations) {
-      s.uk = byId.get(s.id) || null;
-      if (!s.uk) {
-        const cands = byPc.get(normPc(s.pc));
-        if (cands && cands.length) {
+  // ---------- fuel card lists (parsing lives in convert.js) ----------
+  function matchCards() {
+    for (const s of stations) s.cards = {};
+    for (const card of cards) {
+      const byPc = new Map(), byId = new Map();
+      card.rows.forEach(r => {
+        r.matched = 0;
+        if (r.id) byId.set(r.id, r);
+        if (r.pc) { if (!byPc.has(r.pc)) byPc.set(r.pc, []); byPc.get(r.pc).push(r); }
+      });
+      for (const s of stations) {
+        let hit = byId.get(s.id) || null;
+        if (!hit) {
+          const cands = byPc.get(normPc(s.pc));
           // several list rows on one postcode: pick the one whose name best matches
-          s.uk = cands.length === 1 ? cands[0] : cands.slice().sort((a, b) => nameScore(b.name, s) - nameScore(a.name, s))[0];
+          if (cands && cands.length) hit = cands.length === 1 ? cands[0] : cands.slice().sort((a, b) => nameScore(b.name, s) - nameScore(a.name, s))[0];
         }
+        if (hit) { hit.matched++; s.cards[card.id] = hit; }
       }
-      if (s.uk) s.uk.matched++;
-      s.cat = s.tc ? "grey" : s.uk ? (s.uk.hgv === false ? "red" : "green") : "amber";
+      card.unmatched = card.rows.filter(r => !r.matched);
     }
-    const unmatched = listRows.filter(r => !r.matched);
-    $("listinfo").innerHTML = listRows.length
-      ? `UK Fuels list: <b>${listRows.length}</b> sites` +
-        (unmatched.length ? ` · <a id="showUn">${unmatched.length} not matched</a>` : "")
-      : `No UK Fuels list published yet`;
-    const su = $("showUn"); if (su) su.onclick = () => showUnmatched(unmatched);
+    // fill the card drop-down
+    const sel = $("cardFilter"), keep = sel.value || savedCard;
+    sel.innerHTML = '<option value="">No card selected</option>' +
+      cards.map(c => `<option value="${esc(c.id)}">${esc(c.name)} (${c.rows.length - c.unmatched.length} sites)</option>`).join("");
+    if (cards.some(c => c.id === keep)) sel.value = keep;
+  }
+  const cardById = id => cards.find(c => c.id === id);
+  function catFor(s, card) {
+    if (s.tc) return "grey";
+    if (!card) return "amber";
+    const hit = s.cards[card.id];
+    return hit ? (hit.hgv === false ? "red" : "green") : "amber";
+  }
+  function updateKey(card) {
+    $("k-green").hidden = $("k-red").hidden = !card;
+    $("kl-amber").textContent = card ? "Doesn't take " + card.name : "Fuel station";
+    if (card) { $("kl-green").textContent = "Takes " + card.name; $("kl-red").textContent = card.name + " – no HGVs"; }
+    $("cardOpts").hidden = !card;
+    $("listinfo").innerHTML = !cards.length ? "No fuel card lists published yet" :
+      card ? `${esc(card.name)} list: <b>${card.rows.length}</b> sites` +
+             (card.unmatched.length ? ` · <a id="showUn">${card.unmatched.length} not matched</a>` : "") : "";
+    const su = $("showUn"); if (su) su.onclick = () => showUnmatched(card);
   }
   function nameScore(name, s) {
     const a = new Set(String(name).toLowerCase().split(/\W+/).filter(w => w.length > 2));
     const b = (s.n + " " + s.b + " " + s.a).toLowerCase();
     let n = 0; a.forEach(w => { if (b.includes(w)) n++; }); return n;
   }
-  function showUnmatched(rows) {
-    const el = $("unmatched");
-    el.innerHTML = `<b>Sites on your list that didn't match a Fuel Finder station</b>
+  function showUnmatched(card) {
+    const rows = card.unmatched, el = $("unmatched");
+    el.innerHTML = `<b>${esc(card.name)} sites that didn't match a Fuel Finder station</b>
       <p style="font-size:13px;margin:6px 0">Usually a postcode that differs slightly. Fix the postcode in your list, or add a <code>node_id</code> column with the station's ID (shown at the bottom of each station's popup).</p>
       <ul>${rows.map(r => `<li>${esc(r.name || "(no name)")} – ${esc(r.raw.join(", "))}</li>`).join("")}</ul>
       <button id="closeUn">Close</button>`;
@@ -256,29 +281,33 @@
   function draw() {
     layer.clearLayers(); markers = [];
     const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
-    const card = $("cardFilter").value, showClosed = $("showClosed").checked;
+    const card = cardById($("cardFilter").value), showClosed = $("showClosed").checked;
+    const onlyCard = !!card && $("onlyCard").checked, hideNoHgv = !!card && $("hideNoHgv").checked;
     const counts = { green:0, amber:0, red:0, grey:0 };
     // draw amber first so green/red sit on top where they overlap
     const order = { grey:0, amber:1, green:2, red:3 };
     const list = stations.slice().sort((a, b) => order[a.cat] - order[b.cat]);
+    stations.forEach(s => s.cat = catFor(s, card));
+    list.sort((a, b) => order[a.cat] - order[b.cat]);
     for (const s of list) {
       counts[s.cat]++;
       if (s.cat === "grey" && !showClosed) continue;
       if (want.diesel && !hasDiesel(s)) continue;
       if (want.unleaded && !hasUnleaded(s)) continue;
       if (want.adblue && !(s.am || []).includes("adblue_pumps")) continue;
-      if (card === "ukf" && !s.uk) continue;
-      if (card === "ukf-hgv" && !(s.uk && s.uk.hgv !== false)) continue;
+      if (onlyCard && !s.cards[card.id]) continue;
+      if (hideNoHgv && s.cat === "red") continue;
       const m = L.circleMarker([s.y, s.x], {
         renderer: canvas, radius: radiusFor(map.getZoom()), color: "#fff", weight: 1.2,
         fillColor: COLORS[s.cat], fillOpacity: 0.95
       });
-      m.bindPopup(() => popup(s), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
+      m.bindPopup(() => popup(s, card), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
-    try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, card, showClosed })); } catch (e) {}
-    const nActive = Object.values(want).filter(Boolean).length + (card !== "all" ? 1 : 0);
+    updateKey(card);
+    try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, card: card ? card.id : "", onlyCard: $("onlyCard").checked, hideNoHgv: $("hideNoHgv").checked, showClosed })); } catch (e) {}
+    const nActive = Object.values(want).filter(Boolean).length + (onlyCard ? 1 : 0) + (hideNoHgv ? 1 : 0);
     $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
   }
   const DIESELS = ["B7S", "B7P", "B7_STANDARD", "B7_PREMIUM", "B7", "B10", "HVO"], UNLEADEDS = ["E10", "E5"];
@@ -287,7 +316,7 @@
   function radiusFor(z) { return z < 7 ? 3.5 : z < 9 ? 4.5 : z < 11 ? 6 : 8; }
   map.on("zoomend", () => { const r = radiusFor(map.getZoom()); markers.forEach(m => m.setRadius(r)); });
 
-  function popup(s) {
+  function popup(s, card) {
     const name = s.n || s.b || "Fuel station";
     const brand = s.b && s.b.toLowerCase() !== (s.n || "").toLowerCase() ? s.b : "";
     const fuels = Object.keys(s.p || {}).sort((a, b) => (FUEL_ORDER.indexOf(a) + 99) % 99 - (FUEL_ORDER.indexOf(b) + 99) % 99);
@@ -300,13 +329,17 @@
       rows += `<div class="srow"><div class="slabel f-adblue">AdBlue<sup style="font-size:8px">®</sup></div>` +
               `<div class="lcd word"><span class="ghost">~~~~</span>PUMP</div></div>`;
     const sign = rows ? `<div class="sign">${rows}</div>` : `<div class="sub" style="margin:6px 0">No prices reported</div>`;
-    let ukTag = "";
-    if (s.uk) {
-      ukTag = `<span class="tag ${s.cat === "red" ? "r" : "g"}">UK Fuels ✓${s.uk.sur ? " · surcharge " + esc(s.uk.sur) : ""}</span>`;
-      if (s.uk.hgv === false) ukTag += `<span class="tag r">No HGVs</span>`;
-      else if (s.uk.hgv === true) ukTag += `<span class="tag g">HGV OK</span>`;
-    } else ukTag = `<span class="tag a">Not on UK Fuels list</span>`;
-    const tags = [ukTag];
+    // fuel cards accepted here (selected card first)
+    const accepted = cards.filter(c => s.cards[c.id]).sort((a, b) => (card && b.id === card.id) - (card && a.id === card.id));
+    let cardHtml = accepted.map(c => {
+      const r = s.cards[c.id];
+      return `<div class="crow${card && c.id === card.id ? " sel" : ""}"><span class="cname">${esc(c.name)}</span>` +
+             `${r.hgv === false ? '<span class="tag r">No HGVs</span>' : r.hgv === true ? '<span class="tag g">HGV OK</span>' : ""}` +
+             `<span class="csur">${r.sur ? esc(r.sur) : "✓"}</span></div>`;
+    }).join("");
+    if (card && !s.cards[card.id]) cardHtml = `<div class="crow no"><span class="cname">${esc(card.name)}</span><span class="csur">not accepted</span></div>` + cardHtml;
+    const cardsBox = cardHtml ? `<div class="cards"><div class="ch">Fuel cards${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge</span>' : ""}</div>${cardHtml}</div>` : "";
+    const tags = [];
     if (s.tc) tags.push(`<span class="tag r">Temporarily closed</span>`);
     if (s.mw) tags.push(`<span class="tag">Motorway services</span>`);
     if (s.sm) tags.push(`<span class="tag">Supermarket</span>`);
@@ -322,6 +355,7 @@
       <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div></div></div>
       ${sign}
       ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
+      ${cardsBox}
       <div>${tags.join("")}</div>${hours}
       <div class="links"><a href="https://www.google.com/maps/dir/?api=1&destination=${s.y},${s.x}" target="_blank" rel="noopener">Directions</a>
       ${s.ph ? ` · ${esc(s.ph)}` : ""}</div>
@@ -386,20 +420,29 @@
   }
   $("locate").onclick = () => locate(false);
 
-  // ---------- list loading ----------
-  async function loadRepoList() {
+  // ---------- fuel card loading ----------
+  async function loadCards() {
     try {
-      const r = await fetch("ukfuels.csv?v=" + Date.now(), { cache: "no-store" });
-      if (r.ok) { listRows = readList(await r.text()); return; }
-    } catch (e) {}
-    listRows = [];
+      const r = await fetch("cards/index.json?v=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) return;
+      const idx = await r.json();
+      const lists = await Promise.all((idx.cards || []).filter(c => c.file).map(async c => {
+        try {
+          const t = await (await fetch("cards/" + c.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
+          return { id: c.id, name: c.name, rows: FuelMap.readCardList(t).rows };
+        } catch (e) { return null; }
+      }));
+      cards = lists.filter(Boolean);
+    } catch (e) { cards = []; }
   }
+  let savedCard = "";
   // remember filter choices on this device
   try {
     const f = JSON.parse(localStorage.getItem("fuelmap-filters") || "null");
     if (f) {
       document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
-      if (f.card) $("cardFilter").value = f.card;
+      savedCard = f.card || "";
+      $("onlyCard").checked = !!f.onlyCard; $("hideNoHgv").checked = !!f.hideNoHgv;
       $("showClosed").checked = !!f.showClosed;
     }
   } catch (e) {}
@@ -417,6 +460,8 @@
   map.on("click", () => { if (SMALL) setMenu(false, false); });
   document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
   $("cardFilter").addEventListener("change", draw);
+  $("onlyCard").addEventListener("change", draw);
+  $("hideNoHgv").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
 
   // ---------- branding (Admin → Branding) ----------
@@ -444,7 +489,7 @@
       if (uk) addMask(uk);
     }).catch(() => {});
     fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => logos = j || {}).catch(() => {});
-    await loadRepoList();
+    await loadCards();
     try {
       const r = await fetch("data/stations.json?v=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error(r.status);
@@ -452,9 +497,9 @@
       stations = meta.stations || [];
     } catch (e) {
       $("meta").textContent = "No price data published yet – use Admin to upload a Fuel Finder CSV.";
-      applyList(); return;
+      return;
     }
-    applyList(); draw();
+    matchCards(); draw();
     locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
     $("meta").innerHTML = `${stations.length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
