@@ -120,7 +120,7 @@
     };
   }
 
-  /* UK Fuels list: needs a Postcode column; Site name / Surcharge / HGV / node_id optional */
+  /* Fuel card site list: needs a Postcode column; Site name / Surcharge / HGV / node_id optional */
   function findCol(headers, tests) {
     const h = headers.map(x => x.toLowerCase().trim());
     for (const t of tests) { const i = h.findIndex(x => t.test(x)); if (i >= 0) return i; }
@@ -156,7 +156,7 @@
   const brandKey = b => String(b || "").toUpperCase().replace(/\s+/g, " ").trim();
   const brandSlug = b => brandKey(b).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "brand";
 
-  const api = { parseCSV, convertFuelFinder, readUkFuelsList, normPc, brandKey, brandSlug };
+  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, normPc, brandKey, brandSlug };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FuelMap = api;
 })(this);
