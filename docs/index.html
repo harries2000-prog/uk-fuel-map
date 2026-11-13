@@ -3,21 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UK Fuel Map – Atlantis Transport</title>
+<meta name="theme-color" content="#0b2545">
+<title>Atlantis Transport – Fuel Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  :root { --green:#1e9e4a; --amber:#f0a020; --red:#d63a2f; --grey:#8a8f98; --ink:#1d232b; --panel:#ffffffee; }
+  :root { --green:#1e9e4a; --amber:#f0a020; --red:#d63a2f; --grey:#8a8f98; --ink:#1d232b; --panel:#ffffffee;
+          --brand:#0b2545; --brand-ink:#ffffff; --bar:54px; }
   html, body { margin:0; height:100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); }
-  #map { position:absolute; inset:0; background:#dfe6ec; }
+  #map { position:absolute; top:var(--bar); left:0; right:0; bottom:0; background:#dfe6ec; }
+  #bar { position:absolute; top:0; left:0; right:0; height:var(--bar); box-sizing:border-box; z-index:1003; display:flex; align-items:center;
+         gap:8px; padding:8px 10px; background:var(--brand); color:var(--brand-ink); box-shadow:0 2px 8px #0004; }
+  #menuBtn { position:relative; flex:none; width:40px; height:38px; padding:0; font-size:20px; line-height:1; background:transparent;
+             color:var(--brand-ink); border:1.5px solid color-mix(in srgb, var(--brand-ink) 45%, transparent); }
+  #menuBtn:hover { background:color-mix(in srgb, var(--brand-ink) 12%, transparent); }
+  #menuBtn .nf { position:absolute; top:-6px; right:-6px; }
+  #brand { flex:none; display:flex; align-items:center; gap:8px; min-width:0; max-width:34%; }
+  #brand img { max-height:38px; max-width:160px; object-fit:contain; }
+  #brandName { font-weight:800; font-size:16px; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #search { flex:1; min-width:0; max-width:420px; margin-left:auto; padding:8px 10px; border:0; border-radius:8px; font-size:15px; }
+  #locate { flex:none; height:38px; }
+  #drawer { position:absolute; top:var(--bar); left:0; bottom:0; width:290px; max-width:86vw; box-sizing:border-box; z-index:1002;
+            background:#fff; box-shadow:2px 0 12px #0003; padding:12px 14px 18px; overflow-y:auto;
+            transform:translateX(-105%); transition:transform .2s ease; font-size:14px; }
+  #drawer.open { transform:none; }
+  #drawer .dhead { display:flex; align-items:center; font-weight:800; font-size:15px; margin-bottom:2px; }
+  #drawer .dhead button { margin-left:auto; border:0; background:none; font-size:18px; padding:2px 6px; color:#556; }
+  #scrim { position:absolute; inset:var(--bar) 0 0 0; z-index:1001; background:#0005; display:none; }
+  #drawer.open + #scrim { display:block; }
+  .nf { font-size:11px; font-weight:700; color:#fff; background:#d63a2f; border-radius:9px; padding:1px 6px; line-height:1.4; }
   .panel { position:absolute; z-index:1000; background:var(--panel); border-radius:10px;
            box-shadow:0 2px 10px #0003; padding:10px 12px; font-size:14px; }
-  #top { top:10px; left:54px; right:10px; max-width:460px; display:flex; gap:6px; align-items:center; }
-  #search { flex:1; min-width:0; padding:8px 10px; border:1px solid #ccd; border-radius:8px; font-size:15px; }
   button { font:inherit; padding:7px 10px; border-radius:8px; border:1px solid #ccd; background:#fff; cursor:pointer; }
   button:hover { background:#f1f4f7; }
-  #legend { bottom:22px; left:10px; max-width:260px; }
-  #legend h1 { font-size:15px; margin:0 0 6px; }
-  #legend .lh { font-size:12px; color:#556; margin:8px 0 4px; font-weight:600; }
+  #drawer .lh { font-size:12px; color:#556; margin:12px 0 5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
   .chips { display:flex; gap:5px; flex-wrap:wrap; }
   .chip { cursor:pointer; }
   .chip input { position:absolute; opacity:0; pointer-events:none; }
@@ -31,12 +49,14 @@
   .key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#445; margin-top:8px; }
   .key span { display:inline-flex; align-items:center; gap:4px; }
   .key b { font-weight:600; color:#667; font-variant-numeric:tabular-nums; }
-  #legend label.small { display:flex; align-items:center; gap:6px; font-size:12px; color:#445; margin-top:6px; cursor:pointer; }
+  #drawer label.small { display:flex; align-items:center; gap:6px; font-size:12px; color:#445; margin-top:6px; cursor:pointer; }
   .dot { width:11px; height:11px; border-radius:50%; display:inline-block; border:1.5px solid #fff; box-shadow:0 0 0 1px #0004; flex:none; }
   #meta { font-size:12px; color:#556; margin-top:6px; line-height:1.4; }
   #listinfo { font-size:12px; margin-top:6px; }
   #listinfo a { color:#0b62c4; cursor:pointer; }
-  #status { top:60px; left:54px; right:10px; max-width:460px; display:none; }
+  #status { top:calc(var(--bar) + 8px); right:10px; max-width:360px; display:none; z-index:1004; }
+  #drawer .links2 { margin-top:14px; padding-top:10px; border-top:1px solid #e6eaef; font-size:13px; }
+  #drawer .links2 a { color:var(--brand); font-weight:600; }
   .pop h3 { margin:0 0 2px; font-size:15px; }
   .pop .head { display:flex; align-items:center; gap:10px; }
   .pop .head img { width:96px; height:48px; object-fit:contain; flex:none; }
@@ -68,21 +88,20 @@
   .pop .links { margin-top:6px; font-size:13px; }
   #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
   #unmatched li { font-size:13px; }
-  #legendToggle { cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; }
-  #legendToggle .arrow { margin-left:auto; font-size:12px; color:#667; transition:transform .15s; }
-  #legend.collapsed #legendBody { display:none; }
-  #legend.collapsed #legendToggle { margin:0; }
-  #legend.collapsed .arrow { transform:rotate(-90deg); }
-  #legendToggle .nf { font-size:11px; font-weight:700; color:#fff; background:#1e6fd9; border-radius:9px; padding:1px 7px; }
   /* ---- phones ---- */
   @media (max-width:600px) {
+    :root { --bar:50px; }
     .leaflet-control-zoom { display:none; }
-    #top { left:8px; right:8px; top:8px; padding:6px 8px; }
+    #bar { gap:6px; padding:6px 8px; }
+    #menuBtn { width:36px; height:34px; font-size:18px; }
+    #brand { max-width:28%; }
+    #brand img { max-height:30px; max-width:96px; }
+    #brandName { font-size:13px; }
+    #brand.has-logo #brandName { display:none; }
     #search { font-size:16px; padding:6px 8px; }
-    #status { top:56px; left:8px; right:8px; }
-    #legend { left:8px; bottom:14px; max-width:calc(100vw - 16px); padding:7px 10px; font-size:13px; }
-    #legend h1 { font-size:13px; }
-    #legend .lh { margin:6px 0 3px; }
+    #locate { height:34px; padding:4px 8px; }
+    #status { left:8px; right:8px; max-width:none; }
+    #drawer { font-size:13px; }
     .chip span { padding:4px 8px; font-size:12px; }
     #cardFilter { font-size:14px; padding:5px 6px; }
     .leaflet-popup-content { margin:9px 11px; }
@@ -105,17 +124,17 @@
 </style>
 </head>
 <body>
-<div id="map"></div>
-
-<div id="top" class="panel">
+<header id="bar">
+  <button id="menuBtn" title="Menu" aria-label="Menu">☰<span class="nf" id="nFilters" hidden></span></button>
+  <div id="brand"><img id="brandLogo" alt="" hidden><span id="brandName">Atlantis Transport</span></div>
   <input id="search" type="search" placeholder="Find town, postcode or station…" autocomplete="off">
   <button id="locate" title="Show my location">📍</button>
-</div>
+</header>
+<div id="map"></div>
 <div id="status" class="panel"></div>
 
-<div id="legend" class="panel">
-  <h1 id="legendToggle">Filters <span class="nf" id="nFilters" hidden></span><span class="arrow">▾</span></h1>
-  <div id="legendBody">
+<aside id="drawer">
+  <div class="dhead">Filters<button id="closeMenu" aria-label="Close">✕</button></div>
   <div class="lh">Only show stations with</div>
   <div class="chips">
     <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span>Diesel</span></label>
@@ -128,7 +147,8 @@
     <option value="ukf">UK Fuels sites only</option>
     <option value="ukf-hgv">UK Fuels sites that take HGVs</option>
   </select>
-  <div class="key">
+  <div class="lh">Key</div>
+  <div class="key" style="margin-top:0">
     <span><i class="dot" style="background:var(--green)"></i>UK Fuels <b id="c-green"></b></span>
     <span><i class="dot" style="background:var(--amber)"></i>Not UK Fuels <b id="c-amber"></b></span>
     <span><i class="dot" style="background:var(--red)"></i>No HGVs <b id="c-red"></b></span>
@@ -136,9 +156,9 @@
   <label class="small"><input type="checkbox" id="showClosed"> Show temporarily closed (<span id="c-grey"></span>)</label>
   <div id="listinfo"></div>
   <div id="meta">Loading…</div>
-  <div id="meta2" style="font-size:12px;margin-top:4px"><a href="admin.html" style="color:#0b62c4">Admin</a></div>
-  </div>
-</div>
+  <div class="links2"><a href="admin.html">Admin</a></div>
+</aside>
+<div id="scrim"></div>
 
 <div id="unmatched" class="panel"></div>
 
@@ -167,8 +187,9 @@
   const SMALL = window.matchMedia("(max-width:600px)").matches;
   
   const map = L.map("map", {
-    preferCanvas: true, maxBounds: UK_BOUNDS, maxBoundsViscosity: 0.9, minZoom: 5, zoomSnap: 0.5
+    preferCanvas: true, maxBounds: UK_BOUNDS, maxBoundsViscosity: 0.9, minZoom: 5, zoomSnap: 0.5, zoomControl: false
   }).fitBounds([[49.9, -8.2], [60.9, 1.8]]);
+  L.control.zoom({ position: "topright" }).addTo(map);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Prices: GOV.UK Fuel Finder (OGL v3.0)'
   }).addTo(map);
@@ -382,21 +403,41 @@
       $("showClosed").checked = !!f.showClosed;
     }
   } catch (e) {}
-  // filter panel: collapsed by default on phones, remembers your choice
-  let collapsed = SMALL;
-  try { const v = localStorage.getItem("fuelmap-legend"); if (v !== null) collapsed = v === "1"; } catch (e) {}
-  $("legend").classList.toggle("collapsed", collapsed);
-  $("legendToggle").onclick = () => {
-    const c = $("legend").classList.toggle("collapsed");
-    try { localStorage.setItem("fuelmap-legend", c ? "1" : "0"); } catch (e) {}
-  };
-  map.on("click", () => { if (SMALL) $("legend").classList.add("collapsed"); });
+  // ☰ menu: open by default on big screens, closed on phones; remembers your choice
+  function setMenu(open, remember) {
+    $("drawer").classList.toggle("open", open);
+    if (remember) try { localStorage.setItem("fuelmap-menu", open ? "1" : "0"); } catch (e) {}
+  }
+  let menuOpen = !SMALL;
+  try { const v = localStorage.getItem("fuelmap-menu"); if (v !== null && !SMALL) menuOpen = v === "1"; } catch (e) {}
+  setMenu(menuOpen, false);
+  $("menuBtn").onclick = () => setMenu(!$("drawer").classList.contains("open"), true);
+  $("closeMenu").onclick = () => setMenu(false, true);
+  $("scrim").onclick = () => setMenu(false, false);
+  map.on("click", () => { if (SMALL) setMenu(false, false); });
   document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
   $("cardFilter").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
 
+  // ---------- branding (Admin → Branding) ----------
+  function applyBranding(b) {
+    b = Object.assign({ name: "Atlantis Transport", colour: "#0b2545", logo: "" }, b || {});
+    const c = /^#[0-9a-f]{6}$/i.test(b.colour) ? b.colour : "#0b2545";
+    const lum = (parseInt(c.slice(1, 3), 16) * 299 + parseInt(c.slice(3, 5), 16) * 587 + parseInt(c.slice(5, 7), 16) * 114) / 1000;
+    document.documentElement.style.setProperty("--brand", c);
+    document.documentElement.style.setProperty("--brand-ink", lum > 160 ? "#1d232b" : "#ffffff");
+    $("brandName").textContent = b.name || "";
+    document.title = (b.name ? b.name + " – " : "") + "Fuel Map";
+    const img = $("brandLogo");
+    if (b.logo) { img.src = b.logo; img.alt = b.name || ""; img.hidden = false; $("brand").classList.add("has-logo"); }
+    else { img.hidden = true; $("brand").classList.remove("has-logo"); }
+    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = c;
+  }
+  applyBranding();
+
   // ---------- start ----------
   (async function start() {
+    fetch("site.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(applyBranding).catch(() => {});
     fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(r => r.ok ? r.json() : null).then(t => {
       if (!t || !window.topojson) return;
       const uk = topojson.feature(t, t.objects.countries).features.find(f => f.id === "826");
