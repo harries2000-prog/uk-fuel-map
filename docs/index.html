@@ -44,7 +44,6 @@
   .chip.c-unl input:checked + span    { background:#00843d; border-color:#00843d; color:#fff; }
   .chip.c-adblue input:checked + span { background:#0067b1; border-color:#0067b1; color:#fff; text-transform:none; }
   .chip.c-adblue span { text-transform:none; }
-  #cardFilter { width:100%; padding:6px 8px; font-size:14px; border:1px solid #c9d0d8; border-radius:6px; background:#fff; }
   .key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#445; margin-top:8px; }
   .key span { display:inline-flex; align-items:center; gap:4px; }
   .key em { font-style:normal; }
@@ -95,6 +94,23 @@
   .crow.sel { background:#eef8f1; }
   .crow.no { background:#fff6e5; } .crow.no .csur { color:#9a6200; font-weight:500; }
   .crow .tag { margin:0; }
+  .pop .links { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .pop .links a.nav { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px;
+                      background:#1a73e8; color:#fff !important; box-shadow:0 1px 3px #0004; }
+  .pop .links a.nav:hover { background:#1558b0; }
+  .pop .links a.tel { color:#1d232b; text-decoration:none; font-variant-numeric:tabular-nums; }
+  .crow .cimg { width:30px; height:19px; border-radius:3px; object-fit:cover; flex:none; margin-right:3px; box-shadow:0 0 0 1px #0002; }
+  #drawer .lh .hint { text-transform:none; font-weight:500; color:#8a94a0; letter-spacing:0; }
+  .cchips { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .cchip { position:relative; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 4px 4px;
+           border:2px solid #dde3ea; border-radius:8px; background:#fff; text-align:center; font-size:12px; line-height:1.15; }
+  .cchip input { position:absolute; opacity:0; pointer-events:none; }
+  .cchip img { width:72px; height:45px; object-fit:cover; border-radius:5px; box-shadow:0 1px 2px #0003; }
+  .cchip .cn { font-weight:700; }
+  .cchip .cc { color:#7a8591; font-size:11px; }
+  .cchip.on { border-color:var(--brand,#0b2545); background:#eef3f9; }
+  .cchip.on::after { content:"✓"; position:absolute; top:2px; right:5px; font-weight:800; color:var(--brand,#0b2545); }
+  .cchip.off { opacity:.45; cursor:default; }
   #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
   #unmatched li { font-size:13px; }
   /* ---- phones ---- */
@@ -113,12 +129,13 @@
     #drawer { font-size:13px; }
     #drawer.open + #scrim { display:block; }
     .chip span { padding:4px 8px; font-size:12px; }
-    #cardFilter { font-size:14px; padding:5px 6px; }
     .leaflet-popup-content { margin:9px 11px; }
     .pop h3 { font-size:14px; }
     .pop .sub { font-size:11px; margin-bottom:4px; }
     .pop .head { gap:8px; }
     .pop .head img { width:64px; height:32px; }
+    .cchip img { width:56px; height:35px; }
+    .cchip { font-size:11px; padding:4px 3px 3px; }
     .pop .id { display:none; }
     .sign { padding:4px; margin:4px 0 3px; }
     .srow + .srow { margin-top:3px; }
@@ -145,16 +162,16 @@
 
 <aside id="drawer">
   <div class="dhead">Filters<button id="closeMenu" aria-label="Close">✕</button></div>
-  <div class="lh">Only show stations with</div>
+  <div class="lh">Fuel <span class="hint">– stations with any ticked</span></div>
   <div class="chips">
     <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span>Diesel</span></label>
     <label class="chip c-unl"><input type="checkbox" data-fuel="unleaded"><span>Unleaded</span></label>
     <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span>AdBlue</span></label>
   </div>
-  <div class="lh">Fuel card</div>
-  <select id="cardFilter"><option value="">No card selected</option></select>
+  <div class="lh">Fuel cards <span class="hint">– stations taking any ticked</span></div>
+  <div id="cardChips" class="cchips"></div>
   <div id="cardOpts" hidden>
-    <label class="small"><input type="checkbox" id="onlyCard"> Only show sites that take this card</label>
+    <label class="small"><input type="checkbox" id="showOthers"> Also show stations that don't take them</label>
     <label class="small"><input type="checkbox" id="hideNoHgv"> Hide sites marked “no HGVs”</label>
   </div>
   <div class="lh">Key</div>
@@ -207,7 +224,9 @@
   const canvas = L.canvas({ padding: 0.3, tolerance: L.Browser.mobile ? 14 : 8 });
   const layer = L.layerGroup().addTo(map);
   let stations = [], markers = [], meta = {}, logos = {};
-  let cards = [];          // [{id, name, rows:[...]}] from cards/index.json + cards/<id>.csv
+  let cards = [];          // [{id, name, img, rows:[...]}] from cards/index.json + cards/<id>.csv
+  let selCards = new Set();
+  const cardImg = c => c.img ? "cards/" + c.img : FuelMap.dummyCardImg(c.name);
 
   // ---------- helpers ----------
   const $ = id => document.getElementById(id);
@@ -240,28 +259,42 @@
       }
       card.unmatched = card.rows.filter(r => !r.matched);
     }
-    // fill the card drop-down
-    const sel = $("cardFilter"), keep = sel.value || savedCard;
-    sel.innerHTML = '<option value="">No card selected</option>' +
-      cards.map(c => `<option value="${esc(c.id)}">${esc(c.name)} (${c.rows.length - c.unmatched.length} sites)</option>`).join("");
-    if (cards.some(c => c.id === keep)) sel.value = keep;
+    renderCardChips();
   }
-  const cardById = id => cards.find(c => c.id === id);
-  function catFor(s, card) {
+  function renderCardChips() {
+    $("cardChips").innerHTML = cards.map(c => {
+      const n = c.rows.length - (c.unmatched || []).length, has = c.rows.length > 0;
+      return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
+        <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
+        <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
+        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span></label>`;
+    }).join("") || '<div class="small" style="grid-column:1/-1">No fuel cards set up yet</div>';
+  }
+  $("cardChips").addEventListener("change", e => {
+    const id = e.target.dataset.card; if (!id) return;
+    if (e.target.checked) selCards.add(id); else selCards.delete(id);
+    e.target.closest(".cchip").classList.toggle("on", e.target.checked);
+    draw();
+  });
+  const chosenCards = () => cards.filter(c => selCards.has(c.id));
+  function catFor(s, sel) {
     if (s.tc) return "grey";
-    if (!card) return "amber";
-    const hit = s.cards[card.id];
-    return hit ? (hit.hgv === false ? "red" : "green") : "amber";
+    if (!sel.length) return "amber";
+    const hits = sel.filter(c => s.cards[c.id]);
+    if (!hits.length) return "amber";
+    return hits.every(c => s.cards[c.id].hgv === false) ? "red" : "green";
   }
-  function updateKey(card) {
-    $("k-green").hidden = $("k-red").hidden = !card;
-    $("kl-amber").textContent = card ? "Doesn't take " + card.name : "Fuel station";
-    if (card) { $("kl-green").textContent = "Takes " + card.name; $("kl-red").textContent = card.name + " – no HGVs"; }
-    $("cardOpts").hidden = !card;
-    $("listinfo").innerHTML = !cards.length ? "No fuel card lists published yet" :
-      card ? `${esc(card.name)} list: <b>${card.rows.length}</b> sites` +
-             (card.unmatched.length ? ` · <a id="showUn">${card.unmatched.length} not matched</a>` : "") : "";
-    const su = $("showUn"); if (su) su.onclick = () => showUnmatched(card);
+  function updateKey(sel) {
+    const any = sel.length > 0, nm = sel.length === 1 ? sel[0].name : "a ticked card";
+    $("k-green").hidden = $("k-red").hidden = !any;
+    $("k-amber").hidden = any && !$("showOthers").checked;
+    $("kl-amber").textContent = any ? "Doesn't take " + nm : "Fuel station";
+    if (any) { $("kl-green").textContent = "Takes " + nm; $("kl-red").textContent = (sel.length === 1 ? sel[0].name : "Card") + " site – no HGVs"; }
+    $("cardOpts").hidden = !any;
+    $("listinfo").innerHTML = !cards.some(c => c.rows.length) ? "No fuel card lists published yet" :
+      sel.map(c => `${esc(c.name)}: <b>${c.rows.length}</b> sites` +
+        (c.unmatched.length ? ` · <a data-un="${esc(c.id)}">${c.unmatched.length} not matched</a>` : "")).join("<br>");
+    $("listinfo").querySelectorAll("[data-un]").forEach(a => a.onclick = () => showUnmatched(cards.find(c => c.id === a.dataset.un)));
   }
   function nameScore(name, s) {
     const a = new Set(String(name).toLowerCase().split(/\W+/).filter(w => w.length > 2));
@@ -281,42 +314,76 @@
   function draw() {
     layer.clearLayers(); markers = [];
     const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
-    const card = cardById($("cardFilter").value), showClosed = $("showClosed").checked;
-    const onlyCard = !!card && $("onlyCard").checked, hideNoHgv = !!card && $("hideNoHgv").checked;
+    const sel = chosenCards(), showClosed = $("showClosed").checked;
+    const onlyCard = sel.length > 0 && !$("showOthers").checked, hideNoHgv = sel.length > 0 && $("hideNoHgv").checked;
+    const anyFuel = want.diesel || want.unleaded || want.adblue;
     const counts = { green:0, amber:0, red:0, grey:0 };
     // draw amber first so green/red sit on top where they overlap
     const order = { grey:0, amber:1, green:2, red:3 };
     const list = stations.slice().sort((a, b) => order[a.cat] - order[b.cat]);
-    stations.forEach(s => s.cat = catFor(s, card));
+    stations.forEach(s => s.cat = catFor(s, sel));
     list.sort((a, b) => order[a.cat] - order[b.cat]);
     for (const s of list) {
       counts[s.cat]++;
       if (s.cat === "grey" && !showClosed) continue;
-      if (want.diesel && !hasDiesel(s)) continue;
-      if (want.unleaded && !hasUnleaded(s)) continue;
-      if (want.adblue && !(s.am || []).includes("adblue_pumps")) continue;
-      if (onlyCard && !s.cards[card.id]) continue;
+      // fuel: any ticked type; cards: any ticked card
+      if (anyFuel && !((want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) ||
+                       (want.adblue && (s.am || []).includes("adblue_pumps")))) continue;
+      if (onlyCard && !sel.some(c => s.cards[c.id])) continue;
       if (hideNoHgv && s.cat === "red") continue;
-      const m = L.circleMarker([s.y, s.x], {
-        renderer: canvas, radius: radiusFor(map.getZoom()), color: "#fff", weight: 1.2,
-        fillColor: COLORS[s.cat], fillOpacity: 0.95
+      const m = new PumpMarker([s.y, s.x], {
+        renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: COLORS[s.cat]
       });
-      m.bindPopup(() => popup(s, card), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
+      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
-    updateKey(card);
-    try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, card: card ? card.id : "", onlyCard: $("onlyCard").checked, hideNoHgv: $("hideNoHgv").checked, showClosed })); } catch (e) {}
-    const nActive = Object.values(want).filter(Boolean).length + (onlyCard ? 1 : 0) + (hideNoHgv ? 1 : 0);
+    updateKey(sel);
+    try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed })); } catch (e) {}
+    const nActive = Object.values(want).filter(Boolean).length + sel.length + (hideNoHgv ? 1 : 0);
     $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
   }
   const DIESELS = ["B7S", "B7P", "B7_STANDARD", "B7_PREMIUM", "B7", "B10", "HVO"], UNLEADEDS = ["E10", "E5"];
   const sells = (s, list) => list.some(f => (s.p && s.p[f] != null) || (s.ft || []).includes(f));
   const hasDiesel = s => sells(s, DIESELS), hasUnleaded = s => sells(s, UNLEADEDS);
-  function radiusFor(z) { return z < 7 ? 3.5 : z < 9 ? 4.5 : z < 11 ? 6 : 8; }
+  function radiusFor(z) { return z < 7 ? 5 : z < 9 ? 6.5 : z < 11 ? 8.5 : z < 13 ? 11 : 13; }
+
+  // Fuel-pump shaped marker, drawn on the shared canvas (fast with thousands of stations).
+  // Drawn inside the circle's box, so clicks and redraws work exactly like a circle marker.
+  const PumpMarker = L.CircleMarker.extend({
+    _updatePath() {
+      const r = this._renderer;
+      if (!r._drawing || this._empty()) return;
+      const p = this._point, ctx = r._ctx, u = this._radius / 8, col = this.options.fillColor;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.lineJoin = "round"; ctx.lineCap = "round";
+      const rr = (x, y, w, hh, rad) => { ctx.beginPath(); ctx.moveTo(x + rad, y); ctx.arcTo(x + w, y, x + w, y + hh, rad);
+        ctx.arcTo(x + w, y + hh, x, y + hh, rad); ctx.arcTo(x, y + hh, x, y, rad); ctx.arcTo(x, y, x + w, y, rad); ctx.closePath(); };
+      // hose + nozzle (white halo first, then colour)
+      const hose = () => { ctx.beginPath(); ctx.moveTo(1.5 * u, 1.5 * u); ctx.lineTo(4.6 * u, 1.5 * u); ctx.lineTo(4.6 * u, -3.2 * u); ctx.lineTo(2.6 * u, -5.6 * u); };
+      hose(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3.2 * u + 1.6; ctx.stroke();
+      hose(); ctx.strokeStyle = col; ctx.lineWidth = 1.9 * u; ctx.stroke();
+      // body
+      rr(-6.4 * u, -7.4 * u, 8.6 * u, 14.6 * u, 1.6 * u);
+      ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, 1.1 * u); ctx.stroke();
+      // display window
+      rr(-4.6 * u, -5.6 * u, 5 * u, 4.2 * u, 0.7 * u); ctx.fillStyle = "#fff"; ctx.fill();
+      ctx.restore();
+    }
+  });
   map.on("zoomend", () => { const r = radiusFor(map.getZoom()); markers.forEach(m => m.setRadius(r)); });
 
-  function popup(s, card) {
+  // Directions from the user's current position: Apple Maps on iPhone/iPad, the default
+  // navigation app on Android (geo: link), Google Maps everywhere else.
+  const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ANDROID = /Android/i.test(navigator.userAgent);
+  function navUrl(s) {
+    const ll = s.y + "," + s.x, label = encodeURIComponent(title(s.n || s.b || "Fuel station"));
+    if (IOS) return "https://maps.apple.com/?daddr=" + ll + "&dirflg=d";
+    if (ANDROID) return "geo:" + ll + "?q=" + ll + "(" + label + ")";
+    return "https://www.google.com/maps/dir/?api=1&destination=" + ll + "&travelmode=driving";
+  }
+  const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M21.7 11.3l-9-9a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4zM14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5z"/></svg>';
+  function popup(s, sel) {
     const name = s.n || s.b || "Fuel station";
     const brand = s.b && s.b.toLowerCase() !== (s.n || "").toLowerCase() ? s.b : "";
     const fuels = Object.keys(s.p || {}).sort((a, b) => (FUEL_ORDER.indexOf(a) + 99) % 99 - (FUEL_ORDER.indexOf(b) + 99) % 99);
@@ -329,15 +396,16 @@
       rows += `<div class="srow"><div class="slabel f-adblue">AdBlue<sup style="font-size:8px">®</sup></div>` +
               `<div class="lcd word"><span class="ghost">~~~~</span>PUMP</div></div>`;
     const sign = rows ? `<div class="sign">${rows}</div>` : `<div class="sub" style="margin:6px 0">No prices reported</div>`;
-    // fuel cards accepted here (selected card first)
-    const accepted = cards.filter(c => s.cards[c.id]).sort((a, b) => (card && b.id === card.id) - (card && a.id === card.id));
+    // fuel cards accepted here (ticked cards first)
+    const isSel = c => sel.includes(c);
+    const accepted = cards.filter(c => s.cards[c.id]).sort((a, b) => isSel(b) - isSel(a));
     let cardHtml = accepted.map(c => {
       const r = s.cards[c.id];
-      return `<div class="crow${card && c.id === card.id ? " sel" : ""}"><span class="cname">${esc(c.name)}</span>` +
+      return `<div class="crow${isSel(c) ? " sel" : ""}"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}</span>` +
              `${r.hgv === false ? '<span class="tag r">No HGVs</span>' : r.hgv === true ? '<span class="tag g">HGV OK</span>' : ""}` +
              `<span class="csur">${r.sur ? esc(r.sur) : "✓"}</span></div>`;
     }).join("");
-    if (card && !s.cards[card.id]) cardHtml = `<div class="crow no"><span class="cname">${esc(card.name)}</span><span class="csur">not accepted</span></div>` + cardHtml;
+    cardHtml = sel.filter(c => !s.cards[c.id]).map(c => `<div class="crow no"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}</span><span class="csur">not accepted</span></div>`).join("") + cardHtml;
     const cardsBox = cardHtml ? `<div class="cards"><div class="ch">Fuel cards${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge</span>' : ""}</div>${cardHtml}</div>` : "";
     const tags = [];
     if (s.tc) tags.push(`<span class="tag r">Temporarily closed</span>`);
@@ -351,14 +419,14 @@
     }
     const upd = s.u ? new Date(s.u + (s.u.length === 16 ? ":00Z" : "")).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "";
     const logo = logos[FuelMap.brandKey(s.b)];
-    return `<div class="pop"><div class="head">${logo ? `<img src="logos/${esc(logo)}" alt="">` : ""}<div><h3>${esc(title(name))}</h3>
+    return `<div class="pop"><div class="head"><img src="${esc(logo ? "logos/" + logo : FuelMap.GENERIC_LOGO)}" alt=""><div><h3>${esc(title(name))}</h3>
       <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div></div></div>
       ${sign}
       ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
       ${cardsBox}
       <div>${tags.join("")}</div>${hours}
-      <div class="links"><a href="https://www.google.com/maps/dir/?api=1&destination=${s.y},${s.x}" target="_blank" rel="noopener">Directions</a>
-      ${s.ph ? ` · ${esc(s.ph)}` : ""}</div>
+      <div class="links"><a class="nav" href="${navUrl(s)}" target="_blank" rel="noopener" title="Directions from where you are" aria-label="Directions">${NAV_ICON}</a>
+      ${s.ph ? `<a class="tel" href="tel:${esc(s.ph.replace(/\s+/g, ""))}">${esc(s.ph)}</a>` : ""}</div>
       <div class="sub id" style="margin-top:6px;font-size:10px;word-break:break-all">ID ${esc(s.id)}</div></div>`;
   }
 
@@ -426,23 +494,23 @@
       const r = await fetch("cards/index.json?v=" + Date.now(), { cache: "no-store" });
       if (!r.ok) return;
       const idx = await r.json();
-      const lists = await Promise.all((idx.cards || []).filter(c => c.file).map(async c => {
-        try {
+      cards = await Promise.all((idx.cards || []).map(async c => {
+        let rows = [];
+        if (c.file) try {
           const t = await (await fetch("cards/" + c.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
-          return { id: c.id, name: c.name, rows: FuelMap.readCardList(t).rows };
-        } catch (e) { return null; }
+          rows = FuelMap.readCardList(t).rows;
+        } catch (e) {}
+        return { id: c.id, name: c.name, img: c.img || "", rows };
       }));
-      cards = lists.filter(Boolean);
     } catch (e) { cards = []; }
   }
-  let savedCard = "";
   // remember filter choices on this device
   try {
     const f = JSON.parse(localStorage.getItem("fuelmap-filters") || "null");
     if (f) {
       document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
-      savedCard = f.card || "";
-      $("onlyCard").checked = !!f.onlyCard; $("hideNoHgv").checked = !!f.hideNoHgv;
+      selCards = new Set(f.cards || (f.card ? [f.card] : []));
+      $("showOthers").checked = !!f.showOthers; $("hideNoHgv").checked = !!f.hideNoHgv;
       $("showClosed").checked = !!f.showClosed;
     }
   } catch (e) {}
@@ -459,8 +527,7 @@
   $("scrim").onclick = () => setMenu(false, false);
   map.on("click", () => { if (SMALL) setMenu(false, false); });
   document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
-  $("cardFilter").addEventListener("change", draw);
-  $("onlyCard").addEventListener("change", draw);
+  $("showOthers").addEventListener("change", draw);
   $("hideNoHgv").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
 
