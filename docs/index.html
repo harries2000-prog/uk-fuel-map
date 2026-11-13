@@ -17,9 +17,22 @@
   button:hover { background:#f1f4f7; }
   #legend { bottom:22px; left:10px; max-width:260px; }
   #legend h1 { font-size:15px; margin:0 0 6px; }
-  #legend label { display:flex; align-items:center; gap:7px; margin:4px 0; cursor:pointer; }
-  .dot { width:12px; height:12px; border-radius:50%; display:inline-block; border:1.5px solid #fff; box-shadow:0 0 0 1px #0004; flex:none; }
-  .count { margin-left:auto; color:#667; font-variant-numeric: tabular-nums; }
+  #legend .lh { font-size:12px; color:#556; margin:8px 0 4px; font-weight:600; }
+  .chips { display:flex; gap:5px; flex-wrap:wrap; }
+  .chip { cursor:pointer; }
+  .chip input { position:absolute; opacity:0; pointer-events:none; }
+  .chip span { display:inline-block; padding:5px 10px; border-radius:6px; font-size:13px; font-weight:700; letter-spacing:.3px;
+               text-transform:uppercase; border:2px solid #c9d0d8; color:#55606c; background:#fff; user-select:none; }
+  .chip.c-diesel input:checked + span { background:#111; border-color:#111; color:#fff; }
+  .chip.c-unl input:checked + span    { background:#00843d; border-color:#00843d; color:#fff; }
+  .chip.c-adblue input:checked + span { background:#0067b1; border-color:#0067b1; color:#fff; text-transform:none; }
+  .chip.c-adblue span { text-transform:none; }
+  #cardFilter { width:100%; padding:6px 8px; font-size:14px; border:1px solid #c9d0d8; border-radius:6px; background:#fff; }
+  .key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#445; margin-top:8px; }
+  .key span { display:inline-flex; align-items:center; gap:4px; }
+  .key b { font-weight:600; color:#667; font-variant-numeric:tabular-nums; }
+  #legend label.small { display:flex; align-items:center; gap:6px; font-size:12px; color:#445; margin-top:6px; cursor:pointer; }
+  .dot { width:11px; height:11px; border-radius:50%; display:inline-block; border:1.5px solid #fff; box-shadow:0 0 0 1px #0004; flex:none; }
   #meta { font-size:12px; color:#556; margin-top:6px; line-height:1.4; }
   #listinfo { font-size:12px; margin-top:6px; }
   #listinfo a { color:#0b62c4; cursor:pointer; }
@@ -69,11 +82,24 @@
 
 <div id="legend" class="panel">
   <h1>UK fuel stations</h1>
-  <label><input type="checkbox" data-cat="green" checked><span class="dot" style="background:var(--green)"></span>Takes UK Fuels<span class="count" id="c-green"></span></label>
-  <label><input type="checkbox" data-cat="amber" checked><span class="dot" style="background:var(--amber)"></span>Not on UK Fuels list<span class="count" id="c-amber"></span></label>
-  <label><input type="checkbox" data-cat="red" checked><span class="dot" style="background:var(--red)"></span>No HGVs<span class="count" id="c-red"></span></label>
-  <label><input type="checkbox" data-cat="grey"><span class="dot" style="background:var(--grey)"></span>Temporarily closed<span class="count" id="c-grey"></span></label>
-  <label><input type="checkbox" id="adblueOnly"> Only sites with AdBlue pumps</label>
+  <div class="lh">Only show stations with</div>
+  <div class="chips">
+    <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span>Diesel</span></label>
+    <label class="chip c-unl"><input type="checkbox" data-fuel="unleaded"><span>Unleaded</span></label>
+    <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span>AdBlue</span></label>
+  </div>
+  <div class="lh">Fuel card</div>
+  <select id="cardFilter">
+    <option value="all">All stations</option>
+    <option value="ukf">UK Fuels sites only</option>
+    <option value="ukf-hgv">UK Fuels sites that take HGVs</option>
+  </select>
+  <div class="key">
+    <span><i class="dot" style="background:var(--green)"></i>UK Fuels <b id="c-green"></b></span>
+    <span><i class="dot" style="background:var(--amber)"></i>Not UK Fuels <b id="c-amber"></b></span>
+    <span><i class="dot" style="background:var(--red)"></i>No HGVs <b id="c-red"></b></span>
+  </div>
+  <label class="small"><input type="checkbox" id="showClosed"> Show temporarily closed (<span id="c-grey"></span>)</label>
   <div id="listinfo"></div>
   <div id="meta">Loading…</div>
   <div id="meta2" style="font-size:12px;margin-top:4px"><a href="admin.html" style="color:#0b62c4">Admin</a></div>
@@ -172,16 +198,20 @@
   // ---------- drawing ----------
   function draw() {
     layer.clearLayers(); markers = [];
-    const show = {}; document.querySelectorAll("[data-cat]").forEach(c => show[c.dataset.cat] = c.checked);
-    const adblue = $("adblueOnly").checked;
+    const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
+    const card = $("cardFilter").value, showClosed = $("showClosed").checked;
     const counts = { green:0, amber:0, red:0, grey:0 };
     // draw amber first so green/red sit on top where they overlap
     const order = { grey:0, amber:1, green:2, red:3 };
     const list = stations.slice().sort((a, b) => order[a.cat] - order[b.cat]);
     for (const s of list) {
       counts[s.cat]++;
-      if (!show[s.cat]) continue;
-      if (adblue && !(s.am || []).includes("adblue_pumps")) continue;
+      if (s.cat === "grey" && !showClosed) continue;
+      if (want.diesel && !hasDiesel(s)) continue;
+      if (want.unleaded && !hasUnleaded(s)) continue;
+      if (want.adblue && !(s.am || []).includes("adblue_pumps")) continue;
+      if (card === "ukf" && !s.uk) continue;
+      if (card === "ukf-hgv" && !(s.uk && s.uk.hgv !== false)) continue;
       const m = L.circleMarker([s.y, s.x], {
         renderer: canvas, radius: radiusFor(map.getZoom()), color: "#fff", weight: 1.2,
         fillColor: COLORS[s.cat], fillOpacity: 0.95
@@ -190,7 +220,11 @@
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
+    try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, card, showClosed })); } catch (e) {}
   }
+  const DIESELS = ["B7S", "B7P", "B7_STANDARD", "B7_PREMIUM", "B7", "B10", "HVO"], UNLEADEDS = ["E10", "E5"];
+  const sells = (s, list) => list.some(f => (s.p && s.p[f] != null) || (s.ft || []).includes(f));
+  const hasDiesel = s => sells(s, DIESELS), hasUnleaded = s => sells(s, UNLEADEDS);
   function radiusFor(z) { return z < 7 ? 3.5 : z < 9 ? 4.5 : z < 11 ? 6 : 8; }
   map.on("zoomend", () => { const r = radiusFor(map.getZoom()); markers.forEach(m => m.setRadius(r)); });
 
@@ -279,16 +313,19 @@
     } catch (err) { status("Search unavailable right now", 3000); }
   });
   let me = null;
-  $("locate").onclick = () => {
-    if (!navigator.geolocation) return status("Location isn't available in this browser", 3000);
-    status("Finding you…");
+  function locate(auto) {
+    if (!navigator.geolocation) { if (!auto) status("Location isn't available in this browser", 3000); return; }
+    if (!auto) status("Finding you…");
     navigator.geolocation.getCurrentPosition(p => {
-      const ll = [p.coords.latitude, p.coords.longitude];
+      const ll = L.latLng(p.coords.latitude, p.coords.longitude);
+      if (!UK_BOUNDS.contains(ll)) { if (!auto) status("You appear to be outside the UK", 3000); return; }
       if (me) me.remove();
-      me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#1769e0", fillOpacity: 1 }).addTo(map);
-      map.setView(ll, 12); status("", 0);
-    }, () => status("Couldn't get your location", 3000), { enableHighAccuracy: true, timeout: 10000 });
-  };
+      me = L.circleMarker(ll, { radius: 8, color: "#fff", weight: 3, fillColor: "#1769e0", fillOpacity: 1, interactive: false }).addTo(map);
+      map.fitBounds(ll.toBounds(32000));   // ~20 miles across
+      status("", 0);
+    }, () => { if (!auto) status("Couldn't get your location", 3000); }, { enableHighAccuracy: !auto, timeout: 10000, maximumAge: 300000 });
+  }
+  $("locate").onclick = () => locate(false);
 
   // ---------- list loading ----------
   async function loadRepoList() {
@@ -298,8 +335,18 @@
     } catch (e) {}
     listRows = [];
   }
-  document.querySelectorAll("[data-cat]").forEach(c => c.addEventListener("change", draw));
-  $("adblueOnly").addEventListener("change", draw);
+  // remember filter choices on this device
+  try {
+    const f = JSON.parse(localStorage.getItem("fuelmap-filters") || "null");
+    if (f) {
+      document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
+      if (f.card) $("cardFilter").value = f.card;
+      $("showClosed").checked = !!f.showClosed;
+    }
+  } catch (e) {}
+  document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
+  $("cardFilter").addEventListener("change", draw);
+  $("showClosed").addEventListener("change", draw);
 
   // ---------- start ----------
   (async function start() {
@@ -320,6 +367,7 @@
       applyList(); return;
     }
     applyList(); draw();
+    locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
     $("meta").innerHTML = `${stations.length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
   })();
