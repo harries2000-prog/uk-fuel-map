@@ -38,6 +38,8 @@
   .brow .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .brow .n { color:#6b7684; font-size:12px; margin-left:4px; }
   .brow.changed { background:#fff8e1; }
+  .brow .cimg { width:86px; height:54px; flex:none; border-radius:6px; object-fit:cover; box-shadow:0 1px 3px #0003; cursor:pointer; }
+  .brow .cbtns { display:flex; flex-wrap:wrap; gap:4px; justify-content:flex-end; }
   .brow button { padding:6px 10px; font-size:13px; }
   .linkbtn { background:none !important; color:#b42318 !important; padding:6px 4px !important; }
   .field { margin:10px 0; }
@@ -81,9 +83,12 @@
     <h2>Fuel cards</h2>
     <p>Upload each card's site list as a CSV. It needs a heading row with a <b>Postcode</b> column;
        <b>Site name</b>, <b>Surcharge</b> and <b>HGV</b> (Yes/No) columns are optional. Uploading a new list replaces that card's old one.</p>
+    <p class="muted">Card images: tap the picture or <b>Image</b>. Best size <b>344 × 216 px</b> (bank-card shape) – other shapes are cropped to fit.
+       Cards without an image show a sample card.</p>
     <div class="brands" id="cardList"></div>
     <div class="row"><input type="text" id="newCard" placeholder="Add another card…" style="flex:1"><button class="secondary" id="addCard">Add</button></div>
     <input type="file" id="cardFile" accept=".csv,text/csv" hidden>
+    <input type="file" id="cardImgFile" accept="image/*" hidden>
   </section>
   </div>
 
@@ -146,7 +151,7 @@
   const $ = id => document.getElementById(id);
   let ffFile = null;
   const DEFAULT_CARDS = ["UK Fuels", "Keyfuels", "FastFuels", "Esso National", "Shell CRT", "Shell Multifleet", "FuelGenie"];
-  let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, cardsDirty = false, cardTarget = null;
+  let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, imgChanges = {}, cardsDirty = false, cardTarget = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
   const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "" };
   let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
@@ -227,12 +232,20 @@
           if (ch.remove) { if (c.file) files.push({ path: "docs/cards/" + c.file.split("?")[0], remove: true }); delete c.file; delete c.count; delete c.updated; }
           else { files.push({ path: "docs/cards/" + c.id + ".csv", content: ch.text }); c.file = c.id + ".csv?v=" + Date.now().toString(36); c.count = ch.count; c.updated = new Date().toISOString().slice(0, 10); }
         }
+        for (const c of idx.cards) {
+          const im = imgChanges[c.id];
+          if (!im || (cardChanges[c.id] && cardChanges[c.id].dropCard)) continue;
+          if (im === "remove") { if (c.img) files.push({ path: "docs/cards/" + c.img.split("?")[0], remove: true }); delete c.img; }
+          else { files.push({ path: "docs/cards/" + c.id + ".png", b64: im.split(",")[1] }); c.img = c.id + ".png?v=" + Date.now().toString(36); }
+        }
         for (const id of Object.keys(cardChanges)) if (cardChanges[id].dropCard) {
-          const c = cardIndex.cards.find(x => x.id === id); if (c && c.file) files.push({ path: "docs/cards/" + c.file.split("?")[0], remove: true });
+          const c = cardIndex.cards.find(x => x.id === id);
+          if (c && c.file) files.push({ path: "docs/cards/" + c.file.split("?")[0], remove: true });
+          if (c && c.img) files.push({ path: "docs/cards/" + c.img.split("?")[0], remove: true });
         }
         idx.cards = idx.cards.filter(c => !(cardChanges[c.id] && cardChanges[c.id].dropCard));
         files.push({ path: "docs/cards/index.json", content: JSON.stringify(idx, null, 1) });
-        what.push("fuel card lists");
+        what.push("fuel cards");
         cardIndex = idx;
       }
       const lc = Object.keys(logoChanges);
@@ -258,7 +271,7 @@
       if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
-      cardChanges = {}; cardsDirty = false; renderCards();
+      cardChanges = {}; imgChanges = {}; cardsDirty = false; renderCards();
       brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
@@ -280,7 +293,7 @@
     $("tabCards").hidden = which !== "cards"; $("tabBtnCards").classList.toggle("on", which === "cards");
     $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
     $("tabBtnBrand").classList.toggle("on", which === "brand");
-    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card lists", logos: "Publish logo changes", brand: "Publish branding" }[which];
+    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card changes", logos: "Publish logo changes", brand: "Publish branding" }[which];
     if (which === "logos" && !brands.length) loadBrands();
   }
   $("tabBtnData").onclick = () => showTab("data");
@@ -297,19 +310,41 @@
       const has = ch ? !ch.remove : !!c.file;
       const info = ch ? (ch.remove ? "list will be removed" : ch.count + " sites (new list – not published yet)")
                       : c.file ? (c.count || "?") + " sites" + (c.updated ? " · updated " + c.updated : "") : "no list yet";
-      return `<div class="brow${ch ? " changed" : ""}" data-id="${escH(c.id)}">
-        <div class="name"><b>${escH(c.name)}</b><span class="n">${escH(info)}</span></div>
-        <button class="secondary" data-act="up">${has ? "Replace list" : "Upload list"}</button>
-        ${has ? '<button class="linkbtn" data-act="rm">Remove list</button>' : ''}<button class="linkbtn" data-act="drop" title="Remove this card completely">✕</button></div>`;
+      const im = imgChanges[c.id], realImg = im ? im !== "remove" : !!c.img;
+      const src = im && im !== "remove" ? im : (!im && c.img ? "cards/" + c.img : FuelMap.dummyCardImg(c.name));
+      return `<div class="brow${ch || im ? " changed" : ""}" data-id="${escH(c.id)}">
+        <img class="cimg" src="${escH(src)}" alt="" data-act="img" title="Change image">
+        <div class="name"><b>${escH(c.name)}</b><br><span class="n" style="margin:0">${escH(info)}${im ? " · image " + (im === "remove" ? "removed" : "changed") : realImg ? "" : " · sample image"}</span></div>
+        <div class="cbtns"><button class="secondary" data-act="up">${has ? "Replace list" : "Upload list"}</button>
+        <button class="secondary" data-act="img">Image</button>
+        ${has ? '<button class="linkbtn" data-act="rm">Remove list</button>' : ''}${realImg ? '<button class="linkbtn" data-act="rmimg">Remove image</button>' : ''}<button class="linkbtn" data-act="drop" title="Remove this card completely">✕</button></div></div>`;
     }).join("");
   }
   $("cardList").addEventListener("click", e => {
-    const b = e.target.closest("button"); if (!b) return;
+    const b = e.target.closest("[data-act]"); if (!b) return;
     const id = b.closest(".brow").dataset.id, c = cardIndex.cards.find(x => x.id === id);
     if (b.dataset.act === "up") { cardTarget = id; $("cardFile").value = ""; $("cardFile").click(); return; }
+    if (b.dataset.act === "img") { cardTarget = id; $("cardImgFile").value = ""; $("cardImgFile").click(); return; }
+    if (b.dataset.act === "rmimg") { if (c.img) imgChanges[id] = "remove"; else delete imgChanges[id]; }
     if (b.dataset.act === "rm") { if (c.file) cardChanges[id] = { remove: true }; else delete cardChanges[id]; }
     if (b.dataset.act === "drop") { if (!confirmDrop(c)) return; cardChanges[id] = { dropCard: true }; }
-    cardsDirty = Object.keys(cardChanges).length > 0; renderCards(); refreshKeyUI();
+    cardsDirty = Object.keys(cardChanges).length + Object.keys(imgChanges).length > 0; renderCards(); refreshKeyUI();
+  });
+  $("cardImgFile").addEventListener("change", async () => {
+    const f = $("cardImgFile").files[0]; if (!f || !cardTarget) return;
+    $("log").innerHTML = "";
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const W = 344, H = 216, w = img.naturalWidth || W, hh = img.naturalHeight || H, s = Math.max(W / w, H / hh);
+      const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+      const g = cv.getContext("2d"); g.imageSmoothingQuality = "high";
+      g.drawImage(img, (W - w * s) / 2, (H - hh * s) / 2, w * s, hh * s);   // fill the card shape, cropping any overflow
+      URL.revokeObjectURL(url);
+      imgChanges[cardTarget] = cv.toDataURL("image/png");
+      cardsDirty = true; renderCards(); refreshKeyUI();
+      log("Image ready for " + cardIndex.cards.find(x => x.id === cardTarget).name + " – press Publish.");
+    } catch (e) { log("✗ Couldn't read that image file.", "err"); }
   });
   $("cardFile").addEventListener("change", async () => {
     const f = $("cardFile").files[0]; if (!f || !cardTarget) return;
