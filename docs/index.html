@@ -68,7 +68,40 @@
   .pop .links { margin-top:6px; font-size:13px; }
   #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
   #unmatched li { font-size:13px; }
-  @media (max-width:600px){ #legend{ font-size:13px; max-width:210px; } #top{ left:50px; } }
+  #legendToggle { cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px; }
+  #legendToggle .arrow { margin-left:auto; font-size:12px; color:#667; transition:transform .15s; }
+  #legend.collapsed #legendBody { display:none; }
+  #legend.collapsed #legendToggle { margin:0; }
+  #legend.collapsed .arrow { transform:rotate(-90deg); }
+  #legendToggle .nf { font-size:11px; font-weight:700; color:#fff; background:#1e6fd9; border-radius:9px; padding:1px 7px; }
+  /* ---- phones ---- */
+  @media (max-width:600px) {
+    .leaflet-control-zoom { display:none; }
+    #top { left:8px; right:8px; top:8px; padding:6px 8px; }
+    #search { font-size:16px; padding:6px 8px; }
+    #status { top:56px; left:8px; right:8px; }
+    #legend { left:8px; bottom:14px; max-width:calc(100vw - 16px); padding:7px 10px; font-size:13px; }
+    #legend h1 { font-size:13px; }
+    #legend .lh { margin:6px 0 3px; }
+    .chip span { padding:4px 8px; font-size:12px; }
+    #cardFilter { font-size:14px; padding:5px 6px; }
+    .leaflet-popup-content { margin:9px 11px; }
+    .pop h3 { font-size:14px; }
+    .pop .sub { font-size:11px; margin-bottom:4px; }
+    .pop .head { gap:8px; }
+    .pop .head img { width:64px; height:32px; }
+    .pop .id { display:none; }
+    .sign { padding:4px; margin:4px 0 3px; }
+    .srow + .srow { margin-top:3px; }
+    .slabel { font-size:11px; padding:0 7px; letter-spacing:.3px; }
+    .lcd { font-size:19px; min-width:86px; padding:5px 17px 5px 6px; }
+    .lcd .ghost { right:17px; top:5px; }
+    .lcd .unit { right:5px; bottom:5px; font-size:10px; }
+    .lcd.word { font-size:14px; padding-top:7px; padding-bottom:7px; }
+    .lcd.word .ghost { top:7px; }
+    .tag { font-size:10px; padding:1px 5px; }
+    .pop .links { font-size:12px; margin-top:4px; }
+  }
 </style>
 </head>
 <body>
@@ -81,7 +114,8 @@
 <div id="status" class="panel"></div>
 
 <div id="legend" class="panel">
-  <h1>UK fuel stations</h1>
+  <h1 id="legendToggle">Filters <span class="nf" id="nFilters" hidden></span><span class="arrow">▾</span></h1>
+  <div id="legendBody">
   <div class="lh">Only show stations with</div>
   <div class="chips">
     <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span>Diesel</span></label>
@@ -103,6 +137,7 @@
   <div id="listinfo"></div>
   <div id="meta">Loading…</div>
   <div id="meta2" style="font-size:12px;margin-top:4px"><a href="admin.html" style="color:#0b62c4">Admin</a></div>
+  </div>
 </div>
 
 <div id="unmatched" class="panel"></div>
@@ -129,6 +164,7 @@
     customer_toilets:"Toilets", water_filling:"Water", air_pump_or_screenwash:"Air/screenwash", twenty_four_hour_fuel:"24h fuel"
   };
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const SMALL = window.matchMedia("(max-width:600px)").matches;
   
   const map = L.map("map", {
     preferCanvas: true, maxBounds: UK_BOUNDS, maxBoundsViscosity: 0.9, minZoom: 5, zoomSnap: 0.5
@@ -216,11 +252,13 @@
         renderer: canvas, radius: radiusFor(map.getZoom()), color: "#fff", weight: 1.2,
         fillColor: COLORS[s.cat], fillOpacity: 0.95
       });
-      m.bindPopup(() => popup(s), { maxWidth: 320, minWidth: 270 });
+      m.bindPopup(() => popup(s), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
     try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, card, showClosed })); } catch (e) {}
+    const nActive = Object.values(want).filter(Boolean).length + (card !== "all" ? 1 : 0);
+    $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
   }
   const DIESELS = ["B7S", "B7P", "B7_STANDARD", "B7_PREMIUM", "B7", "B10", "HVO"], UNLEADEDS = ["E10", "E5"];
   const sells = (s, list) => list.some(f => (s.p && s.p[f] != null) || (s.ft || []).includes(f));
@@ -266,7 +304,7 @@
       <div>${tags.join("")}</div>${hours}
       <div class="links"><a href="https://www.google.com/maps/dir/?api=1&destination=${s.y},${s.x}" target="_blank" rel="noopener">Directions</a>
       ${s.ph ? ` · ${esc(s.ph)}` : ""}</div>
-      <div class="sub" style="margin-top:6px;font-size:10px;word-break:break-all">ID ${esc(s.id)}</div></div>`;
+      <div class="sub id" style="margin-top:6px;font-size:10px;word-break:break-all">ID ${esc(s.id)}</div></div>`;
   }
 
   // ---------- UK-only mask ----------
@@ -344,6 +382,15 @@
       $("showClosed").checked = !!f.showClosed;
     }
   } catch (e) {}
+  // filter panel: collapsed by default on phones, remembers your choice
+  let collapsed = SMALL;
+  try { const v = localStorage.getItem("fuelmap-legend"); if (v !== null) collapsed = v === "1"; } catch (e) {}
+  $("legend").classList.toggle("collapsed", collapsed);
+  $("legendToggle").onclick = () => {
+    const c = $("legend").classList.toggle("collapsed");
+    try { localStorage.setItem("fuelmap-legend", c ? "1" : "0"); } catch (e) {}
+  };
+  map.on("click", () => { if (SMALL) $("legend").classList.add("collapsed"); });
   document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
   $("cardFilter").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
