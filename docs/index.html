@@ -25,6 +25,8 @@
   #listinfo a { color:#0b62c4; cursor:pointer; }
   #status { top:60px; left:54px; right:10px; max-width:460px; display:none; }
   .pop h3 { margin:0 0 2px; font-size:15px; }
+  .pop .head { display:flex; align-items:center; gap:10px; }
+  .pop .head img { width:96px; height:48px; object-fit:contain; flex:none; }
   .pop .sub { color:#556; font-size:12px; margin-bottom:6px; }
   @font-face { font-family:"Seg7"; src:url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2") format("woff2"); font-display:swap; }
   @font-face { font-family:"Seg14"; src:url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG14-Classic/DSEG14Classic-Bold.woff2") format("woff2"); font-display:swap; }
@@ -109,9 +111,9 @@
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Prices: GOV.UK Fuel Finder (OGL v3.0)'
   }).addTo(map);
 
-  const canvas = L.canvas({ padding: 0.3, tolerance: 6 });
+  const canvas = L.canvas({ padding: 0.3, tolerance: L.Browser.mobile ? 14 : 8 });
   const layer = L.layerGroup().addTo(map);
-  let stations = [], markers = [], listRows = [], meta = {};
+  let stations = [], markers = [], listRows = [], meta = {}, logos = {};
 
   // ---------- helpers ----------
   const $ = id => document.getElementById(id);
@@ -189,7 +191,7 @@
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
   }
-  function radiusFor(z) { return z < 7 ? 2.5 : z < 9 ? 3.5 : z < 11 ? 5 : 7; }
+  function radiusFor(z) { return z < 7 ? 3.5 : z < 9 ? 4.5 : z < 11 ? 6 : 8; }
   map.on("zoomend", () => { const r = radiusFor(map.getZoom()); markers.forEach(m => m.setRadius(r)); });
 
   function popup(s) {
@@ -222,8 +224,9 @@
       hours = `<div class="sub" style="margin-top:6px">Today (${DAYS[d]}): <b>${esc(s.h[d] || "not given")}</b></div>`;
     }
     const upd = s.u ? new Date(s.u + (s.u.length === 16 ? ":00Z" : "")).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "";
-    return `<div class="pop"><h3>${esc(title(name))}</h3>
-      <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div>
+    const logo = logos[FuelMap.brandKey(s.b)];
+    return `<div class="pop"><div class="head">${logo ? `<img src="logos/${esc(logo)}" alt="">` : ""}<div><h3>${esc(title(name))}</h3>
+      <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div></div></div>
       ${sign}
       ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
       <div>${tags.join("")}</div>${hours}
@@ -305,6 +308,7 @@
       const uk = topojson.feature(t, t.objects.countries).features.find(f => f.id === "826");
       if (uk) addMask(uk);
     }).catch(() => {});
+    fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => logos = j || {}).catch(() => {});
     await loadRepoList();
     try {
       const r = await fetch("data/stations.json?v=" + Date.now(), { cache: "no-store" });
