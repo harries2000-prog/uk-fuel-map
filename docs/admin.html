@@ -59,7 +59,7 @@
   <h1>UK Fuel Map – Admin</h1>
   <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
 
-  <div class="tabs"><button id="tabBtnData" class="on">Prices &amp; UK Fuels list</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button></div>
+  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button></div>
 
   <div id="tabData">
   <section>
@@ -69,15 +69,22 @@
   </section>
 
   <section>
-    <h2>2. Choose files to publish</h2>
+    <h2>2. Choose the file</h2>
     <label class="file" id="ffLabel"><input type="file" id="ffFile" accept=".csv,text/csv">
       <b>Fuel Finder CSV</b><br><span class="muted" id="ffName">Tap to choose the UpdatedFuelPrice-….csv file</span></label>
-    <div style="height:10px"></div>
-    <label class="file" id="ukLabel"><input type="file" id="ukFile" accept=".csv,text/csv">
-      <b>UK Fuels list</b> (optional)<br><span class="muted" id="ukName">CSV with a Postcode column – Site name, Surcharge and HGV columns optional</span></label>
-    <p class="muted">You can publish either file on its own – the other one stays as it is.</p>
   </section>
 
+  </div>
+
+  <div id="tabCards" hidden>
+  <section>
+    <h2>Fuel cards</h2>
+    <p>Upload each card's site list as a CSV. It needs a heading row with a <b>Postcode</b> column;
+       <b>Site name</b>, <b>Surcharge</b> and <b>HGV</b> (Yes/No) columns are optional. Uploading a new list replaces that card's old one.</p>
+    <div class="brands" id="cardList"></div>
+    <div class="row"><input type="text" id="newCard" placeholder="Add another card…" style="flex:1"><button class="secondary" id="addCard">Add</button></div>
+    <input type="file" id="cardFile" accept=".csv,text/csv" hidden>
+  </section>
   </div>
 
   <div id="tabLogos" hidden>
@@ -137,7 +144,9 @@
   const OWNER = "harries2000-prog", REPO = "uk-fuel-map", BRANCH = "main";
   const KEY_LS = "fuelmap-admin-key";
   const $ = id => document.getElementById(id);
-  let ffFile = null, ukFile = null;
+  let ffFile = null;
+  const DEFAULT_CARDS = ["UK Fuels", "Keyfuels", "FastFuels", "Esso National", "Shell CRT", "Shell Multifleet", "FuelGenie"];
+  let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, cardsDirty = false, cardTarget = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
   const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "" };
   let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
@@ -147,7 +156,7 @@
   function refreshKeyUI() {
     const k = getKey();
     $("keyBox").hidden = !!k; $("forget").hidden = !k;
-    $("publish").disabled = !(ffFile || ukFile || Object.keys(logoChanges).length || brandDirty);
+    $("publish").disabled = !(ffFile || cardsDirty || Object.keys(logoChanges).length || brandDirty);
   }
 
   function pick(input, label, nameEl, setter) {
@@ -159,7 +168,6 @@
     });
   }
   pick($("ffFile"), $("ffLabel"), $("ffName"), f => ffFile = f);
-  pick($("ukFile"), $("ukLabel"), $("ukName"), f => ukFile = f);
   $("forget").onclick = () => { try { localStorage.removeItem(KEY_LS); } catch (e) {} refreshKeyUI(); };
 
   // ---- GitHub (used only as storage for the site) ----
@@ -211,13 +219,21 @@
         files.push({ path: "docs/data/stations.json", content: JSON.stringify(data) });
         what.push("prices" + (data.published ? " published " + data.published.replace("T", " ") : ""));
       }
-      if (ukFile) {
-        const text = await ukFile.text();
-        const list = FuelMap.readUkFuelsList(text);
-        if (!list.hasPostcode) throw new Error("The UK Fuels list needs a heading row with a Postcode column.");
-        log("UK Fuels list: " + list.rows.length + " sites.");
-        files.push({ path: "docs/ukfuels.csv", content: text });
-        what.push("UK Fuels list");
+      if (cardsDirty) {
+        const idx = { cards: cardIndex.cards.map(c => Object.assign({}, c)) };
+        for (const c of idx.cards) {
+          const ch = cardChanges[c.id];
+          if (!ch) continue;
+          if (ch.remove) { if (c.file) files.push({ path: "docs/cards/" + c.file.split("?")[0], remove: true }); delete c.file; delete c.count; delete c.updated; }
+          else { files.push({ path: "docs/cards/" + c.id + ".csv", content: ch.text }); c.file = c.id + ".csv?v=" + Date.now().toString(36); c.count = ch.count; c.updated = new Date().toISOString().slice(0, 10); }
+        }
+        for (const id of Object.keys(cardChanges)) if (cardChanges[id].dropCard) {
+          const c = cardIndex.cards.find(x => x.id === id); if (c && c.file) files.push({ path: "docs/cards/" + c.file.split("?")[0], remove: true });
+        }
+        idx.cards = idx.cards.filter(c => !(cardChanges[c.id] && cardChanges[c.id].dropCard));
+        files.push({ path: "docs/cards/index.json", content: JSON.stringify(idx, null, 1) });
+        what.push("fuel card lists");
+        cardIndex = idx;
       }
       const lc = Object.keys(logoChanges);
       if (lc.length) {
@@ -242,6 +258,7 @@
       if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
+      cardChanges = {}; cardsDirty = false; renderCards();
       brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
@@ -260,14 +277,59 @@
   // ---- Tabs ----
   function showTab(which) {
     $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos"; $("tabBrand").hidden = which !== "brand";
+    $("tabCards").hidden = which !== "cards"; $("tabBtnCards").classList.toggle("on", which === "cards");
     $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
     $("tabBtnBrand").classList.toggle("on", which === "brand");
-    $("pubTitle").textContent = which === "data" ? "3. Publish" : which === "logos" ? "Publish logo changes" : "Publish branding";
+    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card lists", logos: "Publish logo changes", brand: "Publish branding" }[which];
     if (which === "logos" && !brands.length) loadBrands();
   }
   $("tabBtnData").onclick = () => showTab("data");
   $("tabBtnLogos").onclick = () => showTab("logos");
   $("tabBtnBrand").onclick = () => showTab("brand");
+  $("tabBtnCards").onclick = () => showTab("cards");
+
+  // ---- Fuel cards ----
+  function confirmDrop(c) { $("log").innerHTML = ""; log(c.name + " will be removed when you press Publish."); return true; }
+  function renderCards() {
+    $("cardList").innerHTML = cardIndex.cards.map(c => {
+      const ch = cardChanges[c.id];
+      if (ch && ch.dropCard) return "";
+      const has = ch ? !ch.remove : !!c.file;
+      const info = ch ? (ch.remove ? "list will be removed" : ch.count + " sites (new list – not published yet)")
+                      : c.file ? (c.count || "?") + " sites" + (c.updated ? " · updated " + c.updated : "") : "no list yet";
+      return `<div class="brow${ch ? " changed" : ""}" data-id="${escH(c.id)}">
+        <div class="name"><b>${escH(c.name)}</b><span class="n">${escH(info)}</span></div>
+        <button class="secondary" data-act="up">${has ? "Replace list" : "Upload list"}</button>
+        ${has ? '<button class="linkbtn" data-act="rm">Remove list</button>' : ''}<button class="linkbtn" data-act="drop" title="Remove this card completely">✕</button></div>`;
+    }).join("");
+  }
+  $("cardList").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const id = b.closest(".brow").dataset.id, c = cardIndex.cards.find(x => x.id === id);
+    if (b.dataset.act === "up") { cardTarget = id; $("cardFile").value = ""; $("cardFile").click(); return; }
+    if (b.dataset.act === "rm") { if (c.file) cardChanges[id] = { remove: true }; else delete cardChanges[id]; }
+    if (b.dataset.act === "drop") { if (!confirmDrop(c)) return; cardChanges[id] = { dropCard: true }; }
+    cardsDirty = Object.keys(cardChanges).length > 0; renderCards(); refreshKeyUI();
+  });
+  $("cardFile").addEventListener("change", async () => {
+    const f = $("cardFile").files[0]; if (!f || !cardTarget) return;
+    const text = await f.text(), list = FuelMap.readCardList(text);
+    $("log").innerHTML = "";
+    if (!list.hasPostcode || !list.rows.length) { log("✗ " + f.name + " needs a heading row with a Postcode column.", "err"); return; }
+    cardChanges[cardTarget] = { text, count: list.rows.length };
+    cardsDirty = true; renderCards(); refreshKeyUI();
+    log("Ready: " + list.rows.length + " sites for " + cardIndex.cards.find(x => x.id === cardTarget).name + " – press Publish.");
+  });
+  $("addCard").onclick = () => {
+    const name = $("newCard").value.trim(); if (!name) return;
+    const id = FuelMap.brandSlug(name);
+    if (!cardIndex.cards.some(c => c.id === id)) cardIndex.cards.push({ id, name });
+    delete (cardChanges[id] || {}).dropCard;
+    if (cardChanges[id] && !Object.keys(cardChanges[id]).length) delete cardChanges[id];
+    $("newCard").value = ""; cardsDirty = true; renderCards(); refreshKeyUI();
+  };
+  fetch("cards/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && j.cards) cardIndex = j; renderCards(); }).catch(renderCards);
 
   // ---- Branding ----
   const SWATCHES = ["#0b2545", "#13315c", "#1d3557", "#0f4c3a", "#1b5e20", "#7a1f1f", "#b71c1c", "#e65100", "#f2b705", "#222831", "#4a4e69", "#005f73"];
