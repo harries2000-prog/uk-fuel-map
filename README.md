@@ -1,7 +1,7 @@
 # UK Fuel Map
 
 A zoomable map of UK fuel stations with prices from the GOV.UK Fuel Finder CSV,
-coloured by whether each site is on your UK Fuels list.
+coloured by whether each site takes the fuel card you pick.
 
 - **Map:** https://harries2000-prog.github.io/uk-fuel-map/
 - **Admin (upload new data):** https://harries2000-prog.github.io/uk-fuel-map/admin.html
@@ -13,9 +13,12 @@ coloured by whether each site is on your UK Fuels list.
 2. Open the Admin page, choose the downloaded `UpdatedFuelPrice-….csv` and press **Publish**.
 3. The map shows the new prices about a minute later.
 
-## UK Fuels list
+## Fuel card lists
 
-Upload it on the Admin page too. It needs a heading row; recognised columns:
+On the Admin page, open **Fuel cards**. Each card (UK Fuels, Keyfuels, FastFuels, Esso National,
+Shell CRT, Shell Multifleet, FuelGenie) has its own site list. Upload, replace or remove a card's list,
+add a new card with **Add**, or remove a card with **✕**, then press **Publish**.
+Each list is a CSV with a heading row; recognised columns:
 
 | Column | Needed? | Notes |
 |---|---|---|
@@ -30,6 +33,6 @@ Upload it on the Admin page too. It needs a heading row; recognised columns:
 - `docs/index.html` – the map
 - `docs/admin.html` – upload page
 - `docs/convert.js` – turns the Fuel Finder CSV into `docs/data/stations.json`
-- `docs/ukfuels.csv` – your UK Fuels list
+- `docs/cards/` – the fuel card lists (`index.json` plus one CSV per card)
 
 Data: GOV.UK Fuel Finder (Open Government Licence v3.0). Map © OpenStreetMap contributors.
