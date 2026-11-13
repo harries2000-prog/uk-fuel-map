@@ -26,10 +26,28 @@
   #status { top:60px; left:54px; right:10px; max-width:460px; display:none; }
   .pop h3 { margin:0 0 2px; font-size:15px; }
   .pop .sub { color:#556; font-size:12px; margin-bottom:6px; }
-  .pop table { border-collapse:collapse; width:100%; font-size:13px; }
-  .pop td { padding:2px 4px; border-bottom:1px solid #eee; }
-  .pop td:last-child { text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
-  .pop .diesel td { font-weight:700; font-size:15px; }
+  @font-face { font-family:"Seg7"; src:url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2") format("woff2"); font-display:swap; }
+  @font-face { font-family:"Seg14"; src:url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG14-Classic/DSEG14Classic-Bold.woff2") format("woff2"); font-display:swap; }
+  /* forecourt price sign */
+  .sign { background:#22272e; border-radius:8px; padding:5px; margin:6px 0 4px; box-shadow:inset 0 0 0 2px #3a414b; }
+  .srow { display:flex; align-items:stretch; gap:5px; }
+  .srow + .srow { margin-top:5px; }
+  .slabel { flex:1; display:flex; align-items:center; padding:0 10px; border-radius:4px; color:#fff;
+            font-weight:800; font-size:13px; letter-spacing:.6px; text-transform:uppercase; line-height:1.1; }
+  .lcd { position:relative; min-width:118px; box-sizing:border-box; text-align:right; padding:6px 22px 6px 8px; border-radius:4px;
+         background:linear-gradient(180deg,#ffe36b 0%,#f6c21c 55%,#eab308 100%); color:#141414;
+         box-shadow:inset 0 0 7px rgba(0,0,0,.35); font:26px/1 "Seg7", ui-monospace, monospace; white-space:nowrap; }
+  .lcd .ghost { position:absolute; right:22px; top:6px; color:#141414; opacity:.07; pointer-events:none; }
+  .lcd .unit { position:absolute; right:6px; bottom:7px; font:700 12px/1 system-ui, sans-serif; }
+  .lcd.word { font-family:"Seg14", ui-monospace, monospace; font-size:20px; padding-top:9px; padding-bottom:9px; }
+  .lcd.word .ghost { top:9px; }
+  .f-diesel  { background:#111; }
+  .f-pdiesel { background:#111; color:#f2c94c; }
+  .f-b10     { background:#3b3f45; }
+  .f-hvo     { background:#1d5a4c; }
+  .f-unl     { background:#00843d; }
+  .f-sup     { background:#c8102e; }
+  .f-adblue  { background:#0067b1; text-transform:none; font-size:14px; }
   .tag { display:inline-block; font-size:11px; padding:1px 6px; border-radius:9px; background:#eef1f4; margin:2px 2px 0 0; }
   .tag.g { background:#d9f2e2; } .tag.a { background:#fdeccc; } .tag.r { background:#f9dcd9; }
   .pop .links { margin-top:6px; font-size:13px; }
@@ -71,9 +89,13 @@
   const UK_BOUNDS = L.latLngBounds([49.6, -9.2], [61.1, 2.4]);
   const FUEL_NAMES = {
     B7_STANDARD:"Diesel", B7S:"Diesel", B7:"Diesel", B7_PREMIUM:"Premium diesel", B7P:"Premium diesel",
-    B10:"Diesel B10", HVO:"HVO", E10:"Unleaded (E10)", E5:"Super unleaded (E5)"
+    B10:"Diesel B10", HVO:"HVO", E10:"Unleaded", E5:"Super unleaded"
   };
-  const FUEL_ORDER = ["B7_STANDARD","B7S","B7","B7_PREMIUM","B7P","B10","HVO","E10","E5"];
+  const FUEL_CLASS = {
+    B7_STANDARD:"f-diesel", B7S:"f-diesel", B7:"f-diesel", B7_PREMIUM:"f-pdiesel", B7P:"f-pdiesel",
+    B10:"f-b10", HVO:"f-hvo", E10:"f-unl", E5:"f-sup"
+  };
+  const FUEL_ORDER = ["B7_STANDARD","B7S","B7","B7_PREMIUM","B7P","HVO","B10","E10","E5"];
   const AMENITY_NAMES = {
     adblue_pumps:"AdBlue pumps", adblue_packaged:"AdBlue (cans)", lpg_pumps:"LPG", car_wash:"Car wash",
     customer_toilets:"Toilets", water_filling:"Water", air_pump_or_screenwash:"Air/screenwash", twenty_four_hour_fuel:"24h fuel"
@@ -162,7 +184,7 @@
         renderer: canvas, radius: radiusFor(map.getZoom()), color: "#fff", weight: 1.2,
         fillColor: COLORS[s.cat], fillOpacity: 0.95
       });
-      m.bindPopup(() => popup(s), { maxWidth: 300 });
+      m.bindPopup(() => popup(s), { maxWidth: 320, minWidth: 270 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
@@ -174,8 +196,15 @@
     const name = s.n || s.b || "Fuel station";
     const brand = s.b && s.b.toLowerCase() !== (s.n || "").toLowerCase() ? s.b : "";
     const fuels = Object.keys(s.p || {}).sort((a, b) => (FUEL_ORDER.indexOf(a) + 99) % 99 - (FUEL_ORDER.indexOf(b) + 99) % 99);
-    const rows = fuels.map(f => `<tr class="${/^B7(_STANDARD|S)?$/.test(f) ? "diesel" : ""}"><td>${esc(FUEL_NAMES[f] || f)}</td><td>${s.p[f].toFixed(1)}p</td></tr>`).join("")
-      || `<tr><td colspan="2" style="color:#889">No prices reported</td></tr>`;
+    let rows = fuels.map(f => {
+      const v = s.p[f].toFixed(1), ghost = "8".repeat(v.length - 2) + ".8";
+      return `<div class="srow"><div class="slabel ${FUEL_CLASS[f] || "f-b10"}">${esc(FUEL_NAMES[f] || f)}</div>` +
+             `<div class="lcd"><span class="ghost">${ghost}</span>${v}<span class="unit">p</span></div></div>`;
+    }).join("");
+    if ((s.am || []).includes("adblue_pumps"))
+      rows += `<div class="srow"><div class="slabel f-adblue">AdBlue<sup style="font-size:8px">®</sup></div>` +
+              `<div class="lcd word"><span class="ghost">~~~~</span>PUMP</div></div>`;
+    const sign = rows ? `<div class="sign">${rows}</div>` : `<div class="sub" style="margin:6px 0">No prices reported</div>`;
     let ukTag = "";
     if (s.uk) {
       ukTag = `<span class="tag ${s.cat === "red" ? "r" : "g"}">UK Fuels ✓${s.uk.sur ? " · surcharge " + esc(s.uk.sur) : ""}</span>`;
@@ -186,7 +215,7 @@
     if (s.tc) tags.push(`<span class="tag r">Temporarily closed</span>`);
     if (s.mw) tags.push(`<span class="tag">Motorway services</span>`);
     if (s.sm) tags.push(`<span class="tag">Supermarket</span>`);
-    (s.am || []).forEach(a => tags.push(`<span class="tag">${esc(AMENITY_NAMES[a] || a.replace(/_/g, " "))}</span>`));
+    (s.am || []).filter(a => a !== "adblue_pumps").forEach(a => tags.push(`<span class="tag">${esc(AMENITY_NAMES[a] || a.replace(/_/g, " "))}</span>`));
     let hours = "";
     if (s.h) {
       const d = (new Date().getDay() + 6) % 7;
@@ -195,7 +224,7 @@
     const upd = s.u ? new Date(s.u + (s.u.length === 16 ? ":00Z" : "")).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }) : "";
     return `<div class="pop"><h3>${esc(title(name))}</h3>
       <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div>
-      <table>${rows}</table>
+      ${sign}
       ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
       <div>${tags.join("")}</div>${hours}
       <div class="links"><a href="https://www.google.com/maps/dir/?api=1&destination=${s.y},${s.x}" target="_blank" rel="noopener">Directions</a>
