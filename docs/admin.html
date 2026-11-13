@@ -40,6 +40,18 @@
   .brow.changed { background:#fff8e1; }
   .brow button { padding:6px 10px; font-size:13px; }
   .linkbtn { background:none !important; color:#b42318 !important; padding:6px 4px !important; }
+  .field { margin:10px 0; }
+  .field label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; }
+  .colrow { display:flex; gap:8px; align-items:center; }
+  .colrow input[type=color] { width:52px; height:40px; padding:0; border:1px solid #c5ccd5; border-radius:8px; background:#fff; }
+  .colrow input[type=text] { width:120px; }
+  .swatches { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .swatches button { width:28px; height:28px; padding:0; border-radius:6px; border:2px solid #fff; box-shadow:0 0 0 1px #c5ccd5; }
+  #brandPreview { display:flex; align-items:center; gap:10px; height:54px; padding:0 12px; border-radius:10px; margin-top:8px; box-shadow:0 2px 8px #0003; }
+  #brandPreview .mb { width:36px; height:34px; border-radius:8px; border:1.5px solid currentColor; opacity:.7; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  #brandPreview img { max-height:38px; max-width:160px; }
+  #brandPreview .nm { font-weight:800; font-size:16px; }
+  #brandPreview .fake { margin-left:auto; background:#fff; border-radius:8px; height:34px; width:40%; }
 </style>
 </head>
 <body>
@@ -47,7 +59,7 @@
   <h1>UK Fuel Map – Admin</h1>
   <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
 
-  <div class="tabs"><button id="tabBtnData" class="on">Prices &amp; UK Fuels list</button><button id="tabBtnLogos">Brand logos</button></div>
+  <div class="tabs"><button id="tabBtnData" class="on">Prices &amp; UK Fuels list</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button></div>
 
   <div id="tabData">
   <section>
@@ -79,6 +91,29 @@
   </section>
   </div>
 
+  <div id="tabBrand" hidden>
+  <section>
+    <h2>Your branding</h2>
+    <p>Shown in the bar across the top of the map.</p>
+    <div class="field"><label for="bName">Company name</label><input type="text" id="bName" maxlength="40"></div>
+    <div class="field"><label>Brand colour</label>
+      <div class="colrow"><input type="color" id="bColour"><input type="text" id="bHex" maxlength="7"></div>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="field"><label>Company logo</label>
+      <div class="row" style="margin-top:0">
+        <button class="secondary" id="bLogoBtn">Upload logo</button>
+        <button class="linkbtn" id="bLogoRm" hidden>Remove logo</button>
+      </div>
+      <p class="muted">Any size – it's fitted into a <b>480 × 120</b> box (wide). A <b>PNG with a transparent background</b> looks best.
+        On phones the logo replaces the company name to save space.</p>
+      <input type="file" id="bLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp">
+    </div>
+    <div class="field"><label>Preview</label><div id="brandPreview"><div class="mb">☰</div><img id="pvLogo" alt="" hidden><span class="nm" id="pvName"></span><div class="fake"></div></div></div>
+    <div class="row"><button class="secondary" id="bReset">Reset to Atlantis Transport default</button></div>
+  </section>
+  </div>
+
   <section>
     <h2 id="pubTitle">3. Publish</h2>
     <div id="keyBox">
@@ -104,13 +139,15 @@
   const $ = id => document.getElementById(id);
   let ffFile = null, ukFile = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
+  const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "" };
+  let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
 
   const log = (msg, cls) => { const el = $("log"); el.innerHTML += (el.innerHTML ? "\n" : "") + (cls ? `<span class="${cls}">${msg}</span>` : msg); };
   const getKey = () => { try { return localStorage.getItem(KEY_LS) || ""; } catch (e) { return ""; } };
   function refreshKeyUI() {
     const k = getKey();
     $("keyBox").hidden = !!k; $("forget").hidden = !k;
-    $("publish").disabled = !(ffFile || ukFile || Object.keys(logoChanges).length);
+    $("publish").disabled = !(ffFile || ukFile || Object.keys(logoChanges).length || brandDirty);
   }
 
   function pick(input, label, nameEl, setter) {
@@ -194,9 +231,18 @@
         what.push(lc.length + " brand logo" + (lc.length > 1 ? "s" : ""));
         logoIndex = idx;
       }
+      if (brandDirty) {
+        const out = { name: site.name, colour: site.colour, logo: site.logo };
+        if (newLogo) { out.logo = "brand/logo.png?v=" + Date.now().toString(36); files.push({ path: "docs/brand/logo.png", b64: newLogo.split(",")[1] }); }
+        else if (removeLogo) { if (site.logo) files.push({ path: "docs/brand/logo.png", remove: true }); out.logo = ""; }
+        files.push({ path: "docs/site.json", content: JSON.stringify(out, null, 1) });
+        what.push("branding");
+        site = out;
+      }
       if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
+      brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
       log("✓ Published. The map will show it in about a minute.", "ok");
@@ -213,13 +259,54 @@
   }).catch(() => $("current").textContent = "No price data published yet.");
   // ---- Tabs ----
   function showTab(which) {
-    $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos";
+    $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos"; $("tabBrand").hidden = which !== "brand";
     $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
-    $("pubTitle").textContent = which === "data" ? "3. Publish" : "Publish logo changes";
+    $("tabBtnBrand").classList.toggle("on", which === "brand");
+    $("pubTitle").textContent = which === "data" ? "3. Publish" : which === "logos" ? "Publish logo changes" : "Publish branding";
     if (which === "logos" && !brands.length) loadBrands();
   }
   $("tabBtnData").onclick = () => showTab("data");
   $("tabBtnLogos").onclick = () => showTab("logos");
+  $("tabBtnBrand").onclick = () => showTab("brand");
+
+  // ---- Branding ----
+  const SWATCHES = ["#0b2545", "#13315c", "#1d3557", "#0f4c3a", "#1b5e20", "#7a1f1f", "#b71c1c", "#e65100", "#f2b705", "#222831", "#4a4e69", "#005f73"];
+  $("swatches").innerHTML = SWATCHES.map(c => `<button style="background:${c}" data-c="${c}" title="${c}"></button>`).join("");
+  const inkFor = c => ((parseInt(c.slice(1, 3), 16) * 299 + parseInt(c.slice(3, 5), 16) * 587 + parseInt(c.slice(5, 7), 16) * 114) / 1000) > 160 ? "#1d232b" : "#fff";
+  function renderBrand() {
+    $("bName").value = site.name; $("bColour").value = site.colour; $("bHex").value = site.colour;
+    const logo = newLogo || (removeLogo ? "" : site.logo);
+    $("pvLogo").hidden = !logo; if (logo) $("pvLogo").src = logo;
+    $("pvName").textContent = site.name;
+    $("brandPreview").style.background = site.colour; $("brandPreview").style.color = inkFor(site.colour);
+    $("bLogoRm").hidden = !logo; $("bLogoBtn").textContent = logo ? "Change logo" : "Upload logo";
+  }
+  const markBrand = () => { brandDirty = true; renderBrand(); refreshKeyUI(); $("log").innerHTML = ""; log("Branding changed – press Publish to put it on the map."); };
+  $("bName").addEventListener("input", () => { site.name = $("bName").value.trim(); brandDirty = true; $("pvName").textContent = site.name; refreshKeyUI(); });
+  $("bColour").addEventListener("input", () => { site.colour = $("bColour").value; markBrand(); });
+  $("bHex").addEventListener("change", () => { const v = $("bHex").value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)) { site.colour = v.toLowerCase(); markBrand(); } else renderBrand(); });
+  $("swatches").addEventListener("click", e => { const c = e.target.dataset.c; if (c) { site.colour = c; markBrand(); } });
+  $("bLogoBtn").onclick = () => { $("bLogoFile").value = ""; $("bLogoFile").click(); };
+  $("bLogoRm").onclick = () => { newLogo = null; removeLogo = true; markBrand(); };
+  $("bReset").onclick = () => { site = Object.assign({}, BRAND_DEFAULT, { logo: site.logo }); newLogo = null; removeLogo = !!site.logo; markBrand(); };
+  $("bLogoFile").addEventListener("change", async () => {
+    const f = $("bLogoFile").files[0]; if (!f) return;
+    try { newLogo = await fitImage(f, 480, 120); removeLogo = false; markBrand(); }
+    catch (e) { $("log").innerHTML = ""; log("✗ Couldn't read that image file.", "err"); }
+  });
+  async function fitImage(f, W, H) {
+    const url = URL.createObjectURL(f);
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const w = img.naturalWidth || W, h = img.naturalHeight || H, s = Math.min(W / w, H / h);
+    const dw = Math.round(w * s), dh = Math.round(h * s);
+    const c = document.createElement("canvas"); c.width = dw; c.height = dh;   // trimmed to the logo, no padding
+    const g = c.getContext("2d"); g.imageSmoothingQuality = "high";
+    g.drawImage(img, 0, 0, dw, dh);
+    URL.revokeObjectURL(url);
+    return c.toDataURL("image/png");
+  }
+  fetch("site.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j) site = Object.assign({}, BRAND_DEFAULT, j); renderBrand(); }).catch(renderBrand);
 
   // ---- Brand logos ----
   async function loadBrands() {
