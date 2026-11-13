@@ -56,12 +56,14 @@
   <label><input type="checkbox" id="adblueOnly"> Only sites with AdBlue pumps</label>
   <div id="listinfo"></div>
   <div id="meta">Loading…</div>
+  <div id="meta2" style="font-size:12px;margin-top:4px"><a href="admin.html" style="color:#0b62c4">Admin</a></div>
 </div>
 
 <div id="unmatched" class="panel"></div>
-<input type="file" id="fileIn" accept=".csv,text/csv" hidden>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script src="convert.js"></script>
 <script>
 (function () {
   "use strict";
@@ -77,8 +79,7 @@
     customer_toilets:"Toilets", water_filling:"Water", air_pump_or_screenwash:"Air/screenwash", twenty_four_hour_fuel:"24h fuel"
   };
   const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const LS_KEY = "ukfuels-list-override";
-
+  
   const map = L.map("map", {
     preferCanvas: true, maxBounds: UK_BOUNDS, maxBoundsViscosity: 0.9, minZoom: 5, zoomSnap: 0.5
   }).fitBounds([[49.9, -8.2], [60.9, 1.8]]);
@@ -88,7 +89,7 @@
 
   const canvas = L.canvas({ padding: 0.3, tolerance: 6 });
   const layer = L.layerGroup().addTo(map);
-  let stations = [], markers = [], listRows = [], listSource = "", meta = {};
+  let stations = [], markers = [], listRows = [], meta = {};
 
   // ---------- helpers ----------
   const $ = id => document.getElementById(id);
@@ -100,58 +101,8 @@
     if (ms) setTimeout(() => { if (el.innerHTML === msg) el.style.display = "none"; }, ms);
   }
 
-  // ---------- CSV (UK Fuels list) ----------
-  function parseCSV(text) {
-    const rows = []; let row = [], cell = "", q = false;
-    text = text.replace(/^﻿/, "");
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (q) {
-        if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
-        else cell += ch;
-      } else if (ch === '"') q = true;
-      else if (ch === ",") { row.push(cell); cell = ""; }
-      else if (ch === "\n" || ch === "\r") {
-        if (ch === "\r" && text[i + 1] === "\n") i++;
-        row.push(cell); cell = ""; if (row.some(c => c.trim() !== "")) rows.push(row); row = [];
-      } else cell += ch;
-    }
-    row.push(cell); if (row.some(c => c.trim() !== "")) rows.push(row);
-    return rows;
-  }
-  function findCol(headers, tests) {
-    const h = headers.map(x => x.toLowerCase().trim());
-    for (const t of tests) { const i = h.findIndex(x => t.test(x)); if (i >= 0) return i; }
-    return -1;
-  }
-  function yesNo(v) {
-    v = String(v || "").trim().toLowerCase();
-    if (!v) return null;
-    if (/^(n|no|false|0|x|none|not accepted|no hgv.*|hgv not.*|not suitable.*|car.*only|cars? only)$/.test(v)) return false;
-    if (/^(y|yes|true|1|✓|accepted|hgv|hgv ok|ok|suitable)$/.test(v)) return true;
-    if (/\bno\b|not/.test(v)) return false;
-    return null;
-  }
-  function readList(text) {
-    const rows = parseCSV(text);
-    if (rows.length < 2) return [];
-    const head = rows[0];
-    const iPc = findCol(head, [/post\s*code/, /^pc$/, /postcode/, /post/]);
-    const iId = findCol(head, [/node.?id/, /fuel.?finder.?id/]);
-    const iName = findCol(head, [/site.?name/, /^name$/, /station/, /site/, /name/]);
-    const iSur = findCol(head, [/surcharge/, /pence|ppl|p\/l/, /price/, /charge/]);
-    const iHgv = findCol(head, [/hgv/, /lorry|truck|lgv/]);
-    const out = [];
-    for (const r of rows.slice(1)) {
-      const rec = {
-        pc: iPc >= 0 ? normPc(r[iPc]) : "", id: iId >= 0 ? (r[iId] || "").trim() : "",
-        name: iName >= 0 ? (r[iName] || "").trim() : "", sur: iSur >= 0 ? (r[iSur] || "").trim() : "",
-        hgv: iHgv >= 0 ? yesNo(r[iHgv]) : null, raw: r
-      };
-      if (rec.pc || rec.id) out.push(rec);
-    }
-    return out;
-  }
+  // ---------- UK Fuels list (parsing lives in convert.js) ----------
+  const readList = text => FuelMap.readUkFuelsList(text).rows;
 
   // ---------- matching & colouring ----------
   function applyList() {
@@ -175,12 +126,9 @@
     }
     const unmatched = listRows.filter(r => !r.matched);
     $("listinfo").innerHTML = listRows.length
-      ? `UK Fuels list: <b>${listRows.length}</b> sites (${esc(listSource)})` +
-        (unmatched.length ? ` · <a id="showUn">${unmatched.length} not matched</a>` : "") +
-        `<br><a id="loadList">Load a different list</a>` + (listSource === "uploaded on this device" ? ` · <a id="clearList">use website list</a>` : "")
-      : `No UK Fuels list loaded yet · <a id="loadList">Load list (CSV)</a>`;
-    const ll = $("loadList"); if (ll) ll.onclick = () => $("fileIn").click();
-    const cl = $("clearList"); if (cl) cl.onclick = () => { try { localStorage.removeItem(LS_KEY); } catch (e) {} loadRepoList().then(() => { applyList(); draw(); }); };
+      ? `UK Fuels list: <b>${listRows.length}</b> sites` +
+        (unmatched.length ? ` · <a id="showUn">${unmatched.length} not matched</a>` : "")
+      : `No UK Fuels list published yet`;
     const su = $("showUn"); if (su) su.onclick = () => showUnmatched(unmatched);
   }
   function nameScore(name, s) {
@@ -314,41 +262,33 @@
   async function loadRepoList() {
     try {
       const r = await fetch("ukfuels.csv?v=" + Date.now(), { cache: "no-store" });
-      if (r.ok) { listRows = readList(await r.text()); listSource = "from website"; return; }
+      if (r.ok) { listRows = readList(await r.text()); return; }
     } catch (e) {}
-    listRows = []; listSource = "";
+    listRows = [];
   }
-  $("fileIn").addEventListener("change", async e => {
-    const f = e.target.files[0]; if (!f) return;
-    const text = await f.text();
-    const rows = readList(text);
-    if (!rows.length) { status("Couldn't find a <b>postcode</b> column in that file. It needs a heading row with a column called Postcode.", 6000); return; }
-    listRows = rows; listSource = "uploaded on this device";
-    try { localStorage.setItem(LS_KEY, text); } catch (err) {}
-    applyList(); draw(); status(`Loaded ${rows.length} UK Fuels sites from ${esc(f.name)}`, 4000);
-    e.target.value = "";
-  });
   document.querySelectorAll("[data-cat]").forEach(c => c.addEventListener("change", draw));
   $("adblueOnly").addEventListener("change", draw);
 
   // ---------- start ----------
   (async function start() {
-    fetch("data/uk.geojson").then(r => r.ok ? r.json() : null).then(f => f && addMask(f)).catch(() => {});
-    let override = null;
-    try { override = localStorage.getItem(LS_KEY); } catch (e) {}
-    if (override) { listRows = readList(override); listSource = "uploaded on this device"; } else await loadRepoList();
+    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(r => r.ok ? r.json() : null).then(t => {
+      if (!t || !window.topojson) return;
+      const uk = topojson.feature(t, t.objects.countries).features.find(f => f.id === "826");
+      if (uk) addMask(uk);
+    }).catch(() => {});
+    await loadRepoList();
     try {
-      const r = await fetch("data/stations.json", { cache: "no-cache" });
+      const r = await fetch("data/stations.json?v=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error(r.status);
       meta = await r.json();
       stations = meta.stations || [];
     } catch (e) {
-      $("meta").textContent = "Station data isn't available yet – the first update may still be running.";
+      $("meta").textContent = "No price data published yet – use Admin to upload a Fuel Finder CSV.";
       applyList(); return;
     }
     applyList(); draw();
-    const when = new Date(meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
-    $("meta").innerHTML = `${stations.length.toLocaleString()} stations · data refreshed ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
+    const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+    $("meta").innerHTML = `${stations.length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
   })();
 })();
 </script>
