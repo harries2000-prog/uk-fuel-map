@@ -1,0 +1,32 @@
+{
+ "cards": [
+  {
+   "id": "uk-fuels",
+   "name": "UK Fuels"
+  },
+  {
+   "id": "keyfuels",
+   "name": "Keyfuels"
+  },
+  {
+   "id": "fastfuels",
+   "name": "FastFuels"
+  },
+  {
+   "id": "esso-national",
+   "name": "Esso National"
+  },
+  {
+   "id": "shell-crt",
+   "name": "Shell CRT"
+  },
+  {
+   "id": "shell-multifleet",
+   "name": "Shell Multifleet"
+  },
+  {
+   "id": "fuelgenie",
+   "name": "FuelGenie"
+  }
+ ]
+}
