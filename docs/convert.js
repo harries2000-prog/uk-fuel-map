@@ -182,6 +182,41 @@
     return pc;
   }
 
+  /* Matching report (used by Admin): which rows of a card's site list / surcharge list
+     find a Fuel Finder station. Same rules as the map: node_id, then postcode (direction
+     letters trimmed), then for surcharges a clear name match in the same postcode area. */
+  function nameScore(name, s) {
+    const a = new Set(String(name || "").toLowerCase().split(/\W+/).filter(w => w.length > 2));
+    const b = (s.n + " " + s.b + " " + s.a + " " + (s.c || "")).toLowerCase();
+    let n = 0; a.forEach(w => { if (b.includes(w)) n++; }); return n;
+  }
+  function stationIndex(stations) {
+    const idx = { pc: new Map(), out: new Map(), id: new Map() };
+    for (const s of stations) {
+      const pc = normPc(s.pc), out = pc.slice(0, -3);
+      if (!idx.pc.has(pc)) idx.pc.set(pc, []); idx.pc.get(pc).push(s);
+      if (!idx.out.has(out)) idx.out.set(out, []); idx.out.get(out).push(s);
+      idx.id.set(s.id, s);
+    }
+    return idx;
+  }
+  function findStation(idx, r, pcRaw, allowName) {
+    if (r.id && idx.id.has(r.id)) return idx.id.get(r.id);
+    const pc = cleanPc(pcRaw), c = idx.pc.get(pc) || idx.pc.get(pcRaw);
+    if (c) return c.length === 1 ? c[0] : c.slice().sort((a, b) => nameScore(r.name, b) - nameScore(r.name, a))[0];
+    if (allowName && r.name) {
+      const cand = (idx.out.get(pc.slice(0, -3)) || []).map(x => [x, nameScore(r.name, x)]).filter(x => x[1] >= 2).sort((a, b) => b[1] - a[1]);
+      if (cand.length && (cand.length === 1 || cand[0][1] > cand[1][1])) return cand[0][0];
+    }
+    return null;
+  }
+  function matchReport(stations, siteRows, surRows) {
+    const idx = stationIndex(stations), rep = { siteUnmatched: [], surUnmatched: [], siteMatched: 0, surMatched: 0 };
+    for (const r of siteRows || []) { if (findStation(idx, r, r.pc, false)) rep.siteMatched++; else rep.siteUnmatched.push(r); }
+    for (const r of surRows || []) { if (findStation(idx, r, r.pcRaw, true)) rep.surMatched++; else rep.surUnmatched.push(r); }
+    return rep;
+  }
+
   /* Brand names -> logo keys: "Esso " / "ESSO" -> "ESSO" -> file "esso.png" */
   const brandKey = b => String(b || "").toUpperCase().replace(/\s+/g, " ").trim();
   const brandSlug = b => brandKey(b).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "brand";
@@ -213,7 +248,7 @@
 <text x="98" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#6b7684">LOGO</text>
 </svg>`);
 
-  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, readSurchargeList, cleanPc, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
+  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, readSurchargeList, cleanPc, matchReport, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FuelMap = api;
 })(this);
