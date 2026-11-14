@@ -39,6 +39,11 @@
   .brow .n { color:#6b7684; font-size:12px; margin-left:4px; }
   .brow.changed { background:#fff8e1; }
   .brow .cimg { width:86px; height:54px; flex:none; border-radius:6px; object-fit:cover; box-shadow:0 1px 3px #0003; cursor:pointer; }
+  .brow .warn { color:#9a4a00; font-size:12px; cursor:pointer; text-decoration:underline; }
+  .brow .okm { color:#1e7a3c; font-size:12px; }
+  #unmatchedBox { margin-top:10px; border:1px solid #f0c48a; background:#fff8ee; border-radius:8px; padding:10px; font-size:13px; }
+  #unmatchedBox table { width:100%; border-collapse:collapse; margin-top:6px; }
+  #unmatchedBox td, #unmatchedBox th { text-align:left; padding:3px 6px; border-top:1px solid #f2dcc0; vertical-align:top; }
   .brow .cbtns { display:flex; flex-wrap:wrap; gap:4px; justify-content:flex-end; }
   .brow button { padding:6px 10px; font-size:13px; }
   .linkbtn { background:none !important; color:#b42318 !important; padding:6px 4px !important; }
@@ -89,6 +94,7 @@
     <p class="muted">Card images: tap the picture or <b>Image</b>. Best size <b>344 × 216 px</b> (bank-card shape) – other shapes are cropped to fit.
        Cards without an image show a sample card.</p>
     <div class="brands" id="cardList"></div>
+    <div id="unmatchedBox" hidden></div>
     <div class="row"><input type="text" id="newCard" placeholder="Add another card…" style="flex:1"><button class="secondary" id="addCard">Add</button></div>
     <input type="file" id="cardFile" accept=".csv,text/csv" hidden>
     <input type="file" id="cardImgFile" accept="image/*" hidden>
@@ -369,6 +375,42 @@
   $("lkCopy").onclick = () => navigator.clipboard.writeText($("lkUrl").value).then(() => { $("lkCopy").textContent = "Copied ✓"; setTimeout(() => $("lkCopy").textContent = "Copy", 1500); });
 
   // ---- Fuel cards ----
+  // ---- Matching report: Fuel Finder is the master list; rows that don't match a station are listed here ----
+  let ffStations = null, matchCache = {};
+  const ffLoad = fetch("data/stations.json?v=" + Date.now()).then(r => r.ok ? r.json() : { stations: [] }).then(d => ffStations = d.stations || []).catch(() => ffStations = []);
+  async function cardTexts(c) {
+    const ch = cardChanges[c.id], sc = surChanges[c.id];
+    const site = ch ? (ch.remove || ch.dropCard ? "" : ch.text) : c.file ? await fetch("cards/" + c.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" }).then(r => r.text()).catch(() => "") : "";
+    const sur = sc ? (sc.remove ? "" : sc.text) : c.sur ? await fetch("cards/" + c.sur.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" }).then(r => r.text()).catch(() => "") : "";
+    return { site, sur };
+  }
+  async function refreshMatches() {
+    await ffLoad; if (!ffStations.length) return;
+    for (const c of cardIndex.cards) {
+      const t = await cardTexts(c);
+      const rows = t.site ? FuelMap.readCardList(t.site).rows : [], sur = t.sur ? FuelMap.readSurchargeList(t.sur).rows : [];
+      matchCache[c.id] = (rows.length || sur.length) ? Object.assign(FuelMap.matchReport(ffStations, rows, sur), { siteTotal: rows.length, surTotal: sur.length }) : null;
+    }
+    renderCards();
+  }
+  function matchLine(id) {
+    const m = matchCache[id]; if (!m) return "";
+    const bits = [];
+    if (m.siteTotal) bits.push(m.siteUnmatched.length ? `<span class="warn" data-unm="${escH(id)}" data-kind="site">${m.siteUnmatched.length} of ${m.siteTotal} sites not matched</span>` : `<span class="okm">✓ all ${m.siteTotal} sites matched</span>`);
+    if (m.surTotal) bits.push(m.surUnmatched.length ? `<span class="warn" data-unm="${escH(id)}" data-kind="sur">${m.surUnmatched.length} of ${m.surTotal} surcharges not matched</span>` : `<span class="okm">✓ all ${m.surTotal} surcharges matched</span>`);
+    return "<br>" + bits.join(" · ");
+  }
+  function showUnmatchedList(id, kind) {
+    const m = matchCache[id], c = cardIndex.cards.find(x => x.id === id), rows = kind === "sur" ? m.surUnmatched : m.siteUnmatched;
+    $("unmatchedBox").innerHTML = `<b>${escH(c.name)} – ${rows.length} ${kind === "sur" ? "surcharge rows" : "sites"} not on the map</b>
+      <div class="muted">These didn't match a Fuel Finder station (by station ID, postcode${kind === "sur" ? ", or name in the same postcode area" : ""}), so they're left out.
+      Usually the postcode is different or the site isn't in Fuel Finder. Fix the postcode in your file, or ask Claude to match them.</div>
+      <table><tr><th>Site</th><th>Postcode</th>${kind === "sur" ? "<th>Surcharge</th>" : ""}</tr>
+      ${rows.map(r => `<tr><td>${escH(r.name || "(no name)")}</td><td>${escH(kind === "sur" ? r.pcRaw : r.pc)}</td>${kind === "sur" ? `<td>${escH(r.ppl)}p ${escH(r.group || "")}</td>` : ""}</tr>`).join("")}</table>
+      <button class="secondary" id="unmClose" style="margin-top:8px">Close</button>`;
+    $("unmatchedBox").hidden = false; $("unmClose").onclick = () => $("unmatchedBox").hidden = true;
+    $("unmatchedBox").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   function confirmDrop(c) { $("log").innerHTML = ""; log(c.name + " will be removed when you press Publish."); return true; }
   function renderCards() {
     $("cardList").innerHTML = cardIndex.cards.map(c => {
@@ -384,7 +426,7 @@
                          : c.sur ? (c.surCount || "?") + " surcharges" + (c.surUpdated ? " · " + c.surUpdated : "") : "no surcharges";
       return `<div class="brow${ch || im || sc ? " changed" : ""}" data-id="${escH(c.id)}">
         <img class="cimg" src="${escH(src)}" alt="" data-act="img" title="Change image">
-        <div class="name"><b>${escH(c.name)}</b><br><span class="n" style="margin:0">${escH(info)}${im ? " · image " + (im === "remove" ? "removed" : "changed") : realImg ? "" : " · sample image"}</span><br><span class="n" style="margin:0">${escH(surInfo)}</span></div>
+        <div class="name"><b>${escH(c.name)}</b><br><span class="n" style="margin:0">${escH(info)}${im ? " · image " + (im === "remove" ? "removed" : "changed") : realImg ? "" : " · sample image"}</span><br><span class="n" style="margin:0">${escH(surInfo)}</span>${matchLine(c.id)}</div>
         <div class="cbtns"><button class="secondary" data-act="up">${has ? "Replace list" : "Upload list"}</button>
         <button class="secondary" data-act="img">Image</button>
         <button class="secondary" data-act="sur">${hasSur ? "Replace surcharges" : "Surcharges"}</button>
@@ -393,6 +435,7 @@
     }).join("");
   }
   $("cardList").addEventListener("click", e => {
+    const u = e.target.closest("[data-unm]"); if (u) { showUnmatchedList(u.dataset.unm, u.dataset.kind); return; }
     const b = e.target.closest("[data-act]"); if (!b) return;
     const id = b.closest(".brow").dataset.id, c = cardIndex.cards.find(x => x.id === id);
     if (b.dataset.act === "up") { cardTarget = id; $("cardFile").value = ""; $("cardFile").click(); return; }
@@ -419,7 +462,7 @@
       const list = FuelMap.readSurchargeList(text);
       if (!list.ok || !list.rows.length) { log("✗ " + f.name + " needs a heading row with a Postcode column and a Surcharge (or Surcharge PPL) column.", "err"); return; }
       surChanges[cardTarget] = { text, count: list.rows.length };
-      cardsDirty = true; renderCards(); refreshKeyUI();
+      cardsDirty = true; renderCards(); refreshKeyUI(); refreshMatches();
       const groups = {}; list.rows.forEach(r => { const k = (r.group || "–") + " " + r.ppl + "p"; groups[k] = (groups[k] || 0) + 1; });
       log("Ready: " + list.rows.length + " surcharges for " + cardIndex.cards.find(x => x.id === cardTarget).name + " – " +
           Object.entries(groups).map(([k, n]) => k + " ×" + n).join(", ") + ". Press Publish.");
@@ -447,7 +490,7 @@
     $("log").innerHTML = "";
     if (!list.hasPostcode || !list.rows.length) { log("✗ " + f.name + " needs a heading row with a Postcode column.", "err"); return; }
     cardChanges[cardTarget] = { text, count: list.rows.length };
-    cardsDirty = true; renderCards(); refreshKeyUI();
+    cardsDirty = true; renderCards(); refreshKeyUI(); refreshMatches();
     log("Ready: " + list.rows.length + " sites for " + cardIndex.cards.find(x => x.id === cardTarget).name + " – press Publish.");
   });
   $("addCard").onclick = () => {
@@ -459,7 +502,7 @@
     $("newCard").value = ""; cardsDirty = true; renderCards(); refreshKeyUI();
   };
   fetch("cards/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
-    .then(j => { if (j && j.cards) cardIndex = j; renderCards(); }).catch(renderCards);
+    .then(j => { if (j && j.cards) cardIndex = j; renderCards(); refreshMatches(); }).catch(renderCards);
 
   // ---- Branding ----
   const SWATCHES = ["#0b2545", "#13315c", "#1d3557", "#0f4c3a", "#1b5e20", "#7a1f1f", "#b71c1c", "#e65100", "#f2b705", "#222831", "#4a4e69", "#005f73"];
