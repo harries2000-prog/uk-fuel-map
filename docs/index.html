@@ -70,7 +70,7 @@
   #meta { font-size:12px; color:#556; margin-top:6px; line-height:1.4; }
   #listinfo { font-size:12px; margin-top:6px; }
   #listinfo a { color:#0b62c4; cursor:pointer; }
-  #status { top:calc(var(--bar) + 8px); left:10px; max-width:360px; display:none; z-index:1004; }
+  #status { top:calc(var(--bar) + 8px); left:50%; transform:translateX(-50%); max-width:360px; display:none; z-index:1004; }
   #drawer .links2 { margin-top:14px; padding-top:10px; border-top:1px solid #e6eaef; font-size:13px; }
   #drawer .links2 a { color:var(--brand); font-weight:600; }
   .pop h3 { margin:0 0 2px; font-size:15px; }
@@ -145,7 +145,7 @@
     #brand.has-logo #brandName { display:none; }
     #search { font-size:16px; padding:6px 8px; }
     #locate { height:34px; padding:4px 8px; }
-    #status { left:8px; right:8px; max-width:none; }
+    #status { left:8px; right:8px; max-width:none; transform:none; }
     #drawer { font-size:13px; left:0; right:auto; box-shadow:2px 0 12px #0003; transform:translateX(-105%); }
     #menuBtn { order:0; }
     #drawer.open + #scrim { display:block; }
