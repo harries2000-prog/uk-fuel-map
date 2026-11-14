@@ -277,7 +277,7 @@
     e.target.closest(".cchip").classList.toggle("on", e.target.checked);
     draw();
   });
-  const chosenCards = () => cards.filter(c => selCards.has(c.id));
+  const chosenCards = () => cards.filter(c => selCards.has(c.id) && c.rows.length);
   function catFor(s, sel) {
     if (s.tc) return "grey";
     if (!sel.length) return "amber";
