@@ -453,7 +453,7 @@
       const steps = [...counts.keys()].sort((a, b) => a - b);
       $("gSteps").innerHTML = steps.map(v => {
         const c = v <= 0 ? COLORS.green : `hsl(${Math.round(40 * (1 - tOf(v)))} 85% 46%)`;
-        return `<div class="gs"><i style="background:${c}"></i><b>${v <= 0 ? "None" : fmt(v).replace(".0p", "p")}</b><small>${counts.get(v)} site${counts.get(v) > 1 ? "s" : ""}</small></div>`;
+        return `<div class="gs"><i style="background:${c}"></i><b>${v <= 0 ? "None" : (+v.toFixed(2)) + "p"}</b><small>${counts.get(v)} site${counts.get(v) > 1 ? "s" : ""}</small></div>`;
       }).join("");
       $("gSteps").hidden = false; $("gNone").parentNode.hidden = true; $("grad").querySelector(".gbar").hidden = true;
       $("gMin").textContent = ""; $("gMax").textContent = "";
