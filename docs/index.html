@@ -213,8 +213,6 @@
   .vform .full { grid-column:1 / -1; }
   .vform .est { grid-column:1 / -1; background:#fff8d6; border-radius:8px; padding:7px 9px; font-size:13px; }
   #settings .primary { background:#000; color:#ffe058; border-color:#000; font-weight:700; }
-  #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
-  #unmatched li { font-size:13px; }
   /* ---- phones ---- */
   @media (max-width:600px) {
     :root { --bar:50px; }
@@ -305,7 +303,6 @@
 </aside>
 <div id="scrim"></div>
 
-<div id="unmatched" class="panel"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="convert.js"></script>
@@ -341,24 +338,37 @@
   const canvas = L.canvas({ padding: 0.3, tolerance: L.Browser.mobile ? 14 : 8 });
   const layer = L.layerGroup().addTo(map);
   let stations = [], markers = [], meta = {}, logos = {};
-  let cards = [];          // [{id, name, img, rows:[...]}] from cards/index.json + cards/<id>.csv
+  let cards = [];          // [{id, name, img, count}] from data/map.json (built on Chris's PC by the updater / Admin)
   let selCards = new Set();
   // card providers (Admin → Card providers): surcharges depend on who supplies the card
-  let providers = [], selProvider = "";   // [{id, name, logo, surRows:{cardId:[rows]}}]
+  let providers = [], selProvider = "";   // [{id, name, logo, cards:[cardIds with surcharges], sur:{cardId:{stationId:[ppl, group]}}}]
   const curProvider = () => providers.find(p => p.id === selProvider) || null;
   // "Other" is built in: no surcharges, and the default until someone picks their provider
-  const OTHER = { id: "other", name: "Other", logo: "", surRows: {}, builtin: true };
+  const OTHER = { id: "other", name: "Other", logo: "", cards: [], sur: {}, builtin: true };
   const OTHER_ICON = '<svg viewBox="0 0 48 30" width="48" height="30" aria-hidden="true"><rect x="1" y="1" width="46" height="28" rx="4" fill="#fff" stroke="#9aa3ad" stroke-width="2"/><rect x="1" y="7" width="46" height="5" fill="#9aa3ad"/><rect x="6" y="18" width="16" height="3" rx="1.5" fill="#c5ccd5"/></svg>';
-  function useProvider() {   // put the chosen provider's surcharges on the cards, then re-match
+  const hasSur = c => { const p = curProvider(); return !!(p && p.cards.includes(c.id)); };
+  function useProvider() {   // put the chosen provider's surcharges on each station's card entries (already matched in the table)
     const p = curProvider();
-    for (const c of cards) c.surRows = (p && p.surRows[c.id]) || [];
+    for (const s of stations) for (const cid in s.cards) { const h = s.cards[cid]; delete h.sur; delete h.group; delete h.noSur; }
+    if (!p) return;
+    for (const cid of p.cards) {
+      const m = p.sur[cid] || {};
+      for (const s of stations) { const h = s.cards[cid]; if (!h) continue; const v = m[s.id]; if (v) { h.sur = (+v[0].toFixed(2)) + "p"; h.group = v[1] || ""; } else h.noSur = true; }
+    }
+  }
+  function applyTable(t) {   // data/map.json → cards, providers, stations with s.cards = {cardId: {hgv}}
+    cards = (t.cards || []).map(c => ({ id: c.id, name: c.name, img: c.img || "", count: c.count || 0 }));
+    stations = t.stations || [];
+    for (const s of stations) { s.cards = {}; for (const [ci, v] of Object.entries(s.k || {})) { const c = cards[ci]; if (c) s.cards[c.id] = { hgv: v === 1 ? true : v === 0 ? false : null }; } }
+    providers = (t.providers || []).map(p => ({ id: p.id, name: p.name, logo: p.logo || "", cards: p.cards || [], sur: (t.sur || {})[p.id] || {} }));
+    providers.push(OTHER);
   }
   function renderProviders() {
     $("provBox").hidden = !providers.length;
     const p = curProvider();
     $("provCur").innerHTML = p ? (p.logo ? `<img src="providers/${esc(p.logo)}" alt="">` : "") + esc(p.name) : "None";
     $("provList").innerHTML = providers.map(q => {
-      const n = Object.keys(q.surRows).filter(id => q.surRows[id].length).map(id => (cards.find(c => c.id === id) || { name: id }).name);
+      const n = q.cards.map(id => (cards.find(c => c.id === id) || { name: id }).name);
       return `<label class="prov${q.id === selProvider ? " on" : ""}"><input type="radio" name="prov" value="${esc(q.id)}"${q.id === selProvider ? " checked" : ""}>
         <span class="pl">${q.logo ? `<img src="providers/${esc(q.logo)}" alt="">` : q.builtin ? OTHER_ICON : ""}</span>
         <span>${esc(q.name)}<small>${q.builtin ? "No surcharges" : n.length ? "Surcharges: " + esc(n.join(", ")) : "No surcharge lists yet"}</small></span></label>`;
@@ -376,47 +386,6 @@
     if (ms) setTimeout(() => { if (el.innerHTML === msg) el.style.display = "none"; }, ms);
   }
 
-  // ---------- fuel card lists (parsing lives in convert.js) ----------
-  function matchCards() {
-    stations = stations.filter(s => !s.extra);   // Fuel Finder stations only; card-only sites are rebuilt below
-    for (const s of stations) s.cards = {};
-    for (const card of cards) {
-      const byPc = new Map(), byId = new Map();
-      card.rows.forEach(r => {
-        r.matched = 0;
-        if (r.extra) return;
-        if (r.id) byId.set(r.id, r);
-        if (r.pc) { if (!byPc.has(r.pc)) byPc.set(r.pc, []); byPc.get(r.pc).push(r); }
-      });
-      for (const s of stations) {
-        let hit = byId.get(s.id) || null;
-        if (!hit) {
-          const cands = byPc.get(normPc(s.pc));
-          // several list rows on one postcode: pick the one whose name best matches
-          if (cands && cands.length) hit = cands.length === 1 ? cands[0] : cands.slice().sort((a, b) => nameScore(b.name, s) - nameScore(a.name, s))[0];
-        }
-        if (hit) { hit.matched++; s.cards[card.id] = hit; }
-      }
-      card.unmatched = card.rows.filter(r => !r.matched && !r.extra);
-      applySurcharges(card, byPcStations());
-    }
-    // sites a card takes that aren't in Fuel Finder (truck stops, depots): shown only while one of their cards is ticked
-    const extras = [], xGrid = new Map(), xKey = (y, x) => Math.round(y * 400) + "," + Math.round(x * 250);
-    for (const card of cards) for (const r of card.rows) {
-      if (!r.extra) continue;
-      let s = null;
-      const ky = Math.round(r.lat * 400), kx = Math.round(r.lng * 250);
-      for (let a = -1; a <= 1 && !s; a++) for (let b = -1; b <= 1 && !s; b++) s = (xGrid.get((ky + a) + "," + (kx + b)) || []).find(e => Math.abs(e.y - r.lat) < 0.0005 && Math.abs(e.x - r.lng) < 0.0008) || null;
-      if (!s) {
-        s = { id: "x:" + (r.src || r.lat + "," + r.lng), extra: 1, n: r.srcName || r.name, b: r.brand || "", a: r.addr || "", c: r.town || "", pc: r.srcPc || "",
-              y: r.lat, x: r.lng, p: {}, ho: r.hours || "", cards: {} };
-        extras.push(s); const k = xKey(r.lat, r.lng); if (!xGrid.has(k)) xGrid.set(k, []); xGrid.get(k).push(s);
-      }
-      s.cards[card.id] = r;
-    }
-    stations = stations.concat(extras);
-    renderCardChips();
-  }
   function renderCardChips() {
     const withList = visibleCards(), cp = cardPrices();
     for (const id of [...selCards]) if (!withList.some(c => c.id === id)) selCards.delete(id);
@@ -424,7 +393,7 @@
     $("cardHint").innerHTML = !cards.some(hasList) ? "" : withList.length ? "Showing the cards you've priced – change in ⚙ My settings."
       : "No cards yet – enter this week's price for your cards in <b>⚙ My settings</b> and they'll show here.";
     $("cardChips").innerHTML = withList.map(c => {
-      const n = stations.filter(s => s.cards && s.cards[c.id]).length, has = c.rows.length > 0 || (c.surRows || []).length > 0;
+      const n = stations.filter(s => s.cards && s.cards[c.id]).length, has = n > 0;
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
         <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
         <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
@@ -439,73 +408,10 @@
   });
   $("provList").addEventListener("change", e => {
     if (e.target.name !== "prov") return;
-    selProvider = e.target.value; useProvider(); matchCards(); renderProviders(); draw();
+    selProvider = e.target.value; useProvider(); renderCardChips(); renderProviders(); draw();
   });
   $("provBox").addEventListener("toggle", () => { try { localStorage.setItem("fuelmap-prov-open", $("provBox").open ? "1" : "0"); } catch (e) {} });
-  // postcode → stations index (built once)
-  let _pcIdx = null;
-  function byPcStations() {
-    if (_pcIdx) return _pcIdx;
-    _pcIdx = { pc: new Map(), out: new Map(), id: new Map() };
-    for (const s of stations) {
-      const pc = normPc(s.pc), out = pc.slice(0, -3);
-      if (!_pcIdx.pc.has(pc)) _pcIdx.pc.set(pc, []); _pcIdx.pc.get(pc).push(s);
-      if (!_pcIdx.out.has(out)) _pcIdx.out.set(out, []); _pcIdx.out.get(out).push(s);
-      _pcIdx.id.set(s.id, s);
-    }
-    return _pcIdx;
-  }
-  // Surcharge layer: kept apart from the card's site list, so removing it puts everything back.
-  // A site on the surcharge list also counts as taking the card.
-  // services with two sides: same brand + same name apart from the direction word, within 2 km
-  let _twins = null;
-  const distM = (a, b, c, d) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.sqrt(x * x + y * y) * 6371000; };
-  const TWIN_RE = /^(.+?)\s+(?:(?:NORTH|SOUTH|EAST|WEST)(?:BOUND)?|[NSEW]\/?B|(?:NORTH|SOUTH|EAST|WEST) ?SIDE)((?:\s+(?:SERVICE AREA|SERVICES|SERVICE STATION|MSA|FORECOURT|PFS|SITE|S\/S))*)\s*$/;
-  function twinsOf(s) {
-    if (!_twins) {
-      _twins = new Map(); const g = new Map();
-      for (const x of stations) {
-        if (x.extra) continue;
-        const m = String(x.n || "").toUpperCase().replace(/[^A-Z0-9/ ]+/g, " ").replace(/\s+/g, " ").trim().match(TWIN_RE); if (!m || m[1].length < 3) continue;
-        const k = String(x.b || "").toUpperCase().replace(/[^A-Z0-9]/g, "") + "|" + (m[1] + m[2]).trim();
-        if (!g.has(k)) g.set(k, []); g.get(k).push(x);
-      }
-      for (const a of g.values()) if (a.length > 1) for (const x of a) _twins.set(x, a.filter(y => y !== x && distM(x.y, x.x, y.y, y.x) <= 2000));
-    }
-    return _twins.get(s) || [];
-  }
-  function applySurcharges(card, idx) {
-    card.surUnmatched = [];
-    const listed = new Set();
-    for (const r of card.rows) if (r.surSet) { delete r.sur; delete r.group; delete r.twin; delete r.surSet; }   // undo the last provider's surcharges
-    for (const r of card.rows) delete r.noSur;
-    for (const r of card.surRows || []) {
-      let s = r.id && idx.id.get(r.id);
-      const pc = FuelMap.cleanPc(r.pcRaw);
-      if (!s) {
-        const c = idx.pc.get(pc) || idx.pc.get(r.pcRaw);
-        if (c) s = c.length === 1 ? c[0] : c.slice().sort((a, b) => nameScore(r.name, b) - nameScore(r.name, a))[0];
-        else if (r.name) {   // postcode not found: same postcode area + a clear name match
-          const cand = (idx.out.get(pc.slice(0, -3)) || []).map(x => [x, nameScore(r.name, x)]).filter(x => x[1] >= 2).sort((a, b) => b[1] - a[1]);
-          if (cand.length && (cand.length === 1 || cand[0][1] > cand[1][1])) s = cand[0][0];
-        }
-      }
-      if (!s) { card.surUnmatched.push(r); continue; }
-      const hit = s.cards[card.id] || (s.cards[card.id] = { hgv: null, fromSur: true });
-      hit.sur = (+r.ppl.toFixed(2)) + "p"; hit.group = r.group; hit.surSet = 1; delete hit.twin; listed.add(s);
-    }
-    // the other side of a services (…NORTH / …SOUTH, EAST / WEST, Northbound / Southbound) gets the same surcharge,
-    // unless the list gives that side its own
-    for (const s of listed) for (const t of twinsOf(s)) {
-      if (listed.has(t)) continue;
-      const src = s.cards[card.id], hit = t.cards[card.id] || (t.cards[card.id] = { hgv: null, fromSur: true });
-      if (hit.sur && !hit.twin) continue;
-      hit.sur = src.sur; hit.group = src.group; hit.twin = 1; hit.surSet = 1;
-    }
-    // with a surcharge list, any other site taking the card has no surcharge
-    if ((card.surRows || []).length) for (const s of stations) { const h = s.cards[card.id]; if (h && !h.sur) h.noSur = true; }
-  }
-  const hasList = c => c.rows.length > 0 || (c.surRows || []).length > 0;
+  const hasList = c => stations.some(s => s.cards && s.cards[c.id]);
   const chosenCards = () => visibleCards().filter(c => selCards.has(c.id));
   function catFor(s, sel) {
     if (s.tc) return "grey";
@@ -522,27 +428,9 @@
     if (any) { $("kl-green").textContent = "Takes " + nm; $("kl-red").textContent = "Doesn't take " + nm; }
     $("cardOpts").hidden = !any;
     $("listinfo").innerHTML = !cards.some(hasList) ? "No fuel card lists published yet" :
-      sel.map(c => `${esc(c.name)}: <b>${c.rows.length}</b> sites` +
-        (c.unmatched.length ? ` · <a data-un="${esc(c.id)}">${c.unmatched.length} not matched</a>` : "") +
-        ((c.surRows || []).length ? `<br>${esc(c.name)} surcharges: <b>${c.surRows.length - c.surUnmatched.length}</b> applied` +
-          (c.surUnmatched.length ? ` · <a data-unsur="${esc(c.id)}">${c.surUnmatched.length} not matched</a>` : "") : "")).join("<br>");
-    $("listinfo").querySelectorAll("[data-un]").forEach(a => a.onclick = () => showUnmatched(cards.find(c => c.id === a.dataset.un)));
-    $("listinfo").querySelectorAll("[data-unsur]").forEach(a => a.onclick = () => showUnmatched(cards.find(c => c.id === a.dataset.unsur), true));
+      sel.map(c => `${esc(c.name)}: <b>${stations.filter(s => s.cards[c.id]).length.toLocaleString()}</b> sites` +
+        (hasSur(c) ? ` · surcharges from ${esc(curProvider().name)}` : "")).join("<br>");
   }
-  function nameScore(name, s) {
-    const a = new Set(String(name).toLowerCase().split(/\W+/).filter(w => w.length > 2));
-    const b = (s.n + " " + s.b + " " + s.a).toLowerCase();
-    let n = 0; a.forEach(w => { if (b.includes(w)) n++; }); return n;
-  }
-  function showUnmatched(card, sur) {
-    const rows = sur ? card.surUnmatched : card.unmatched, el = $("unmatched");
-    el.innerHTML = `<b>${esc(card.name)} ${sur ? "surcharge list rows" : "sites"} that didn't match a Fuel Finder station</b>
-      <p style="font-size:13px;margin:6px 0">Usually a postcode that differs slightly. Fix the postcode in your list, or add a <code>node_id</code> column with the station's ID (shown at the bottom of each station's popup).</p>
-      <ul>${rows.map(r => `<li>${esc(r.name || "(no name)")} – ${esc(r.raw.join(", "))}</li>`).join("")}</ul>
-      <button id="closeUn">Close</button>`;
-    el.style.display = "block"; $("closeUn").onclick = () => el.style.display = "none";
-  }
-
   const exVat = p => (p / 1.2).toFixed(1) + "p";   // pump prices include 20% VAT
 
   // ---------- colour by: pump price (default) / card surcharge ----------
@@ -623,7 +511,7 @@
     const fuelOn = Object.keys(want).filter(k => want[k]);
     // pump price needs exactly one of Diesel / Unleaded (no AdBlue prices); surcharge needs one card that has surcharge data
     const priceFuels = fuelOn.filter(f => f !== "adblue" && f !== "electric");
-    const priceOk = priceFuels.length === 1, surOk = sel.length === 1 && (sel[0].surRows || []).length > 0;
+    const priceOk = priceFuels.length === 1, surOk = sel.length === 1 && hasSur(sel[0]);
     const mode = cbyPref === "sur" && surOk ? "sur" : priceOk ? "price" : surOk ? "sur" : "none";
     const rP = document.querySelector('input[name="cby"][value="price"]'), rS = document.querySelector('input[name="cby"][value="sur"]');
     rP.disabled = !priceOk; rS.disabled = !surOk; rP.checked = mode === "price"; rS.checked = mode === "sur";
@@ -817,37 +705,6 @@
   }
   $("locate").onclick = () => locate(false);
 
-  // ---------- fuel card loading ----------
-  async function loadCards() {
-    try {
-      const r = await fetch("cards/index.json?v=" + Date.now(), { cache: "no-store" });
-      if (!r.ok) return;
-      const idx = await r.json();
-      cards = await Promise.all((idx.cards || []).map(async c => {
-        let rows = [];
-        if (c.file) try {
-          const t = await (await fetch("cards/" + c.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
-          rows = FuelMap.readCardList(t).rows;
-        } catch (e) {}
-        return { id: c.id, name: c.name, img: c.img || "", rows, surRows: [] };
-      }));
-    } catch (e) { cards = []; }
-  }
-  async function loadProviders() {
-    try {
-      const r = await fetch("providers/index.json?v=" + Date.now(), { cache: "no-store" });
-      if (!r.ok) return;
-      const idx = await r.json();
-      providers = await Promise.all((idx.providers || []).map(async p => {
-        const surRows = {};
-        await Promise.all(Object.entries(p.sur || {}).map(async ([cid, f]) => {
-          try { surRows[cid] = FuelMap.readSurchargeList(await (await fetch("providers/" + f.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text()).rows; } catch (e) {}
-        }));
-        return { id: p.id, name: p.name, logo: p.logo || "", surRows };
-      }));
-    } catch (e) { providers = []; }
-    finally { providers.push(OTHER); }
-  }
   // ---------- preferences ----------
   // One object holds everything a user can save: { filters:{...}, ...more later }.
   // Saved in this browser only (local storage) – each phone or PC keeps its own settings.
@@ -1105,23 +962,21 @@
     // UK coastline (ONS Countries Dec 2023, clipped to the high-water mark, simplified to ~100 m)
     fetch("data/uk-outline.json").then(r => r.ok ? r.json() : null).then(g => { if (g) addMask({ geometry: g }); }).catch(() => {});
     fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => logos = j || {}).catch(() => {});
-    await Promise.all([loadCards(), loadProviders()]);
-    if (!providers.some(p => p.id === selProvider)) selProvider = OTHER.id;
-    useProvider();
     try { $("provBox").open = localStorage.getItem("fuelmap-prov-open") === "1"; } catch (e) {}
-    try {
-      const r = await fetch("data/stations.json?v=" + Date.now(), { cache: "no-store" });
+    try {   // the one table: stations, prices, which cards each takes, surcharges per provider – all prepared on Chris's PC
+      const r = await fetch("data/map.json?v=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error(r.status);
       meta = await r.json();
-      stations = meta.stations || [];
+      applyTable(meta);
     } catch (e) {
-      $("meta").textContent = "No price data published yet – use Admin to upload a Fuel Finder CSV.";
+      $("meta").textContent = "No map data published yet.";
       return;
     }
-    matchCards(); renderProviders(); renderVehSel(); draw();
+    if (!providers.some(p => p.id === selProvider)) selProvider = OTHER.id;
+    useProvider(); renderCardChips(); renderProviders(); renderVehSel(); draw();
     locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
-    $("meta").innerHTML = `${(meta.stations || []).length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
+    $("meta").innerHTML = `${(meta.count || 0).toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
   })();
 })();
 </script>
