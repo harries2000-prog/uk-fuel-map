@@ -126,8 +126,7 @@
     <div class="field"><label>Fuel cards</label><div class="row" id="lkCards" style="margin-top:0;gap:14px;flex-wrap:wrap"></div></div>
     <div class="field"><label>Colour pumps by</label>
       <div class="row" style="margin-top:0;gap:14px">
-        <label><input type="radio" name="lkc" class="lk" value="card" checked> Fuel card</label>
-        <label><input type="radio" name="lkc" class="lk" value="price"> Pump price</label>
+        <label><input type="radio" name="lkc" class="lk" value="price" checked> Pump price</label>
         <label><input type="radio" name="lkc" class="lk" value="sur"> Surcharge</label></div>
       <p class="muted">Pump price needs exactly one fuel (Diesel or Unleaded); Surcharge needs exactly one card.</p></div>
     <div class="field"><label>Options</label>
@@ -359,7 +358,7 @@
   }
   function makeLink() {
     const pick = k => [...document.querySelectorAll(`.lk[data-k="${k}"]:checked`)].map(i => i.value);
-    const fuel = pick("fuel"), cardsSel = pick("cards"), colour = (document.querySelector('input[name="lkc"]:checked') || {}).value || "card";
+    const fuel = pick("fuel"), cardsSel = pick("cards"), colour = (document.querySelector('input[name="lkc"]:checked') || {}).value || "price";
     const q = new URLSearchParams();
     if (fuel.length) q.set("fuel", fuel.join(","));
     if (cardsSel.length) q.set("cards", cardsSel.join(","));
@@ -368,8 +367,8 @@
     if ($("lkOthers").checked) q.set("others", "1");
     const url = location.origin + location.pathname.replace(/admin\.html$/, "") + "?" + q.toString().replace(/%2C/g, ",");
     $("lkUrl").value = url; $("lkOpen").href = url;
-    $("lkNote").textContent = colour === "price" && !(fuel.length === 1 && fuel[0] !== "adblue") ? "⚠ Pump price colours need exactly one fuel: Diesel or Unleaded."
-                            : colour === "sur" && cardsSel.length !== 1 ? "⚠ Surcharge colours need exactly one fuel card." : "";
+    $("lkNote").textContent = colour === "price" && fuel.filter(f => f !== "adblue").length !== 1 ? "⚠ Pump price colours need exactly one of Diesel or Unleaded – otherwise pumps show amber."
+                            : colour === "sur" && cardsSel.length !== 1 ? "⚠ Surcharge colours need exactly one fuel card with surcharge data – otherwise it uses pump price." : "";
   }
   document.addEventListener("change", e => { if (e.target.classList.contains("lk")) makeLink(); });
   $("lkCopy").onclick = () => navigator.clipboard.writeText($("lkUrl").value).then(() => { $("lkCopy").textContent = "Copied ✓"; setTimeout(() => $("lkCopy").textContent = "Copy", 1500); });
