@@ -215,6 +215,8 @@
   .setrow textarea { width:100%; box-sizing:border-box; margin-top:6px; font:inherit; font-size:13px; padding:6px; border:1px solid #c5ccd5; border-radius:7px; }
   .setrow .pres { font-size:12.5px; margin-left:6px; }
   #settings .primary { background:#000; color:#ffe058; border-color:#000; font-weight:700; }
+  .setrow .fgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px 8px; margin-top:7px; } .setrow .fgrid label { display:flex; flex-direction:column; font-size:11.5px; font-weight:600; color:#445; gap:2px; } .setrow .fgrid input { width:100%; box-sizing:border-box; }
+  @media (max-width:600px) { .setrow .fgrid { grid-template-columns:repeat(2, 1fr); } }
   #stBackup .brow2 { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; } #stBackup .msg { font-size:13px; margin-top:6px; }
   /* ---- phones ---- */
   @media (max-width:600px) {
@@ -401,7 +403,7 @@
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
         <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
         <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
-        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span>${cp[c.id] ? `<span class="cp">${cp[c.id].p.toFixed(2)}p ex VAT</span>` : ""}</label>`;
+        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span>${cp[c.id] ? (() => { const fk = cardFuelPrice(cp, c.id, shownFuel()) ? shownFuel() : Object.keys(cp[c.id].f)[0]; return `<span class="cp">${fuelLabel(fk)} ${cp[c.id].f[fk].toFixed(2)}p ex VAT</span>`; })() : ""}</label>`;
     }).join("");
   }
   $("cardChips").addEventListener("change", e => {
@@ -673,7 +675,7 @@
   // or the pump price ex VAT if paying at the pump works out cheaper (or no card is ticked).
   let meLL = null;
   const milesBetween = (a, b, c, d) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.sqrt(x * x + y * y) * 3958.8; };
-  const nearFuel = () => { const w = ["diesel", "unleaded"].filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; }); return w.length === 1 ? w[0] : "diesel"; };
+  const nearFuel = () => shownFuel();
   function nearCands() {   // open stations that pass the fuel filter (card filter ignored – we say whether each takes the card)
     const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
     const anyFuel = want.diesel || want.unleaded || want.adblue, sel = chosenCards();
@@ -687,10 +689,10 @@
     const opts = [];
     const pump = s.extra ? null : priceOf(s, fk);
     if (pump != null) opts.push({ v: pump / 1.2, how: "pump", txt: `pump ${pump.toFixed(1)}p (${(pump / 1.2).toFixed(1)}p ex VAT)` });
-    if (fk === "diesel") for (const c of sel) {
-      const h = s.cards[c.id], pr = cp[c.id]; if (!h || !pr) continue;
+    for (const c of sel) {
+      const h = s.cards[c.id], pr = cardFuelPrice(cp, c.id, fk); if (!h || pr == null) continue;
       const sur = parseFloat(String(h.sur || "").replace(/[^0-9.]/g, "")) || 0;
-      opts.push({ v: pr.p + sur, how: c.name, txt: `${esc(c.name)} ${pr.p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""}` });
+      opts.push({ v: pr + sur, how: c.name, txt: `${esc(c.name)} ${pr.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""}` });
     }
     return opts.sort((a, b) => a.v - b.v)[0] || null;
   }
@@ -723,7 +725,6 @@
       h += `<div class="nrow" data-nid="${esc(s.id)}"><span class="nl">≤ ${r} mi</span> <span class="pay">${b.v.toFixed(1)}p</span> ${b.how === "pump" ? "at the pump" : "on " + esc(b.how)}${mpg ? ` · ≈ ${ppm(b.v, mpg).toFixed(1)}p/mile` : ""}<br>
         ${head(s, d)} · <small>${b.txt}</small></div>`;
     }
-    if (sel.length && fk !== "diesel") h += `<div class="nrow none">Card prices are for diesel, so unleaded shows pump prices only.</div>`;
     $("nearBody").innerHTML = h;
   }
   $("nearHead").onclick = () => {
@@ -869,12 +870,24 @@
   const addDays = (ymd, n) => { const t = new Date(ymd + "T12:00:00"); t.setDate(t.getDate() + n); return t.toISOString().slice(0, 10); };
   const niceDate = ymd => new Date(ymd + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
   // card prices are pence per litre EX VAT; each has an expiry date and is removed once it has passed
-  function cardPrices() {
-    const cp = Object.assign({}, prefs.cardPrices || {}), t = todayStr(); let gone = false;
-    for (const k of Object.keys(cp)) if (!cp[k] || !(cp[k].p > 0) || !cp[k].until || cp[k].until < t) { delete cp[k]; gone = true; }
-    if (gone) savePrefs({ cardPrices: cp });
+  // card prices: per card, per fuel (pence per litre, always ex VAT), one "valid until" date per card
+  const CARD_FUELS = [["diesel", "Diesel"], ["unleaded", "Unleaded"], ["pdiesel", "Premium diesel"], ["super", "Super unleaded"], ["hvo", "HVO"], ["adblue", "AdBlue"]];
+  const CARD_FUEL_PUMP = { diesel: "B7S", pdiesel: "B7P", unleaded: "E10", super: "E5", hvo: "HVO" };   // the pump grade each card fuel compares with
+  function cardPrices() {   // {cardId: {f:{fuel: p}, from, until}} – expired ones removed
+    const src = prefs.cardPrices || {}, cp = {}, t = todayStr(); let changed = false;
+    for (const [k, v] of Object.entries(src)) {
+      if (!v) { changed = true; continue; }
+      const f = Object.assign({}, v.f || {}); if (v.p > 0 && !f.diesel) { f.diesel = v.p; changed = true; }   // older single (diesel) price
+      for (const x of Object.keys(f)) if (!(f[x] > 0)) delete f[x];
+      if (!Object.keys(f).length || !v.until || v.until < t) { changed = true; continue; }
+      cp[k] = { f, from: v.from, until: v.until };
+    }
+    if (changed) savePrefs({ cardPrices: cp });
     return cp;
   }
+  const cardFuelPrice = (cp, cid, fuel) => { const x = cp[cid]; return x && x.f[fuel] > 0 ? x.f[fuel] : null; };
+  const fuelLabel = k => (CARD_FUELS.find(x => x[0] === k) || [k, k])[1];
+  function shownFuel() { const w = ["diesel", "unleaded"].filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; }); return w.length === 1 ? w[0] : "diesel"; }
   const hiddenCards = () => new Set(prefs.hiddenCards || []);
   function visibleCards() {   // cards in the filter: only ones with a current price, and not hidden
     const cp = cardPrices(), hid = hiddenCards();
@@ -890,31 +903,36 @@
       `<div class="cpm">${fk === "diesel" ? "Diesel" : "Unleaded"} ≈ <b>${ppm(p, mpg).toFixed(1)}p/mile</b> at the pump <small>(${ppm(p / 1.2, mpg).toFixed(1)}p ex VAT · ${mpg} mpg)</small></div>`; }).join("");
   }
   function cardPriceLine(c, r) {
-    const cp = cardPrices()[c.id]; if (!cp) return "";
-    const sur = parseFloat(String(r.sur || "").replace(/[^0-9.]/g, "")) || 0, tot = cp.p + sur, mpg = myMpg();
-    return `<small class="cyp">Your price ${cp.p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""} ex VAT${mpg ? ` ≈ <b>${ppm(tot, mpg).toFixed(1)}p/mile</b>` : ""}</small>`;
+    const all = cardPrices(), x = all[c.id]; if (!x) return "";
+    const fk = shownFuel(), p = cardFuelPrice(all, c.id, fk), sur = parseFloat(String(r.sur || "").replace(/[^0-9.]/g, "")) || 0, mpg = myMpg();
+    if (p == null) return `<small class="cyp">${Object.entries(x.f).map(([k, v]) => fuelLabel(k) + " " + v.toFixed(2) + "p").join(" · ")} ex VAT</small>`;
+    return `<small class="cyp">Your ${fuelLabel(fk).toLowerCase()} ${p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""} ex VAT${mpg ? ` ≈ <b>${ppm(p + sur, mpg).toFixed(1)}p/mile</b>` : ""}</small>`;
   }
-  // paste a price email / text message: find the diesel price (pence per litre, or £ per litre), and a "valid until" date if there is one
+  // paste a price email / text message: find a price for each fuel it mentions (pence per litre, or £ per litre), and a "valid until" date
   function parsePrice(text) {
     const t = String(text).replace(/\s+/g, " ");
-    const inc = /\binc(?:l(?:uding|\.)?)?\s*vat\b/i.test(t) && !/\bex(?:cl(?:uding|\.)?)?\s*vat\b/i.test(t);
-    const re = /(£\s*)?(\d{1,3}(?:\.\d{1,4})?)\s*(ppl\b|p\/l\b|p per l(?:itre)?\b|pence\b|p\b)?/gi, cands = [];
-    let m;
+    const re = /(£\s*)?(\d{1,3}(?:\.\d{1,4})?)\s*(ppl\b|p\/l\b|p per l(?:itre)?\b|pence\b|p\b)?/gi, f = {}, loose = [];
+    const kind = ctx =>
+      /adblue|ad blue/.test(ctx) ? "adblue" : /\bhvo\b/.test(ctx) ? "hvo" :
+      /(premium|ultimate|v-?power|supreme|excellium|synergy)[^0-9]{0,20}(diesel|derv)|(diesel|derv)[^0-9]{0,12}(premium|ultimate|v-?power|supreme)/.test(ctx) ? "pdiesel" :
+      /diesel|derv|\bgas ?oil\b/.test(ctx) ? "diesel" :
+      /super|\be5\b|momentum|v-?power|ultimate|premium unleaded|99/.test(ctx) ? "super" :
+      /unleaded|\bulsp\b|petrol|\be10\b|\bulp\b/.test(ctx) ? "unleaded" : null;
+    let m, last = 0;
     while ((m = re.exec(t))) {
       let v = parseFloat(m[2]); if (!isFinite(v)) continue;
       if (m[1] || (v > 0.5 && v < 3 && m[2].includes("."))) v *= 100;
-      if (v < 50 || v > 400) continue;
-      const ctx = t.slice(Math.max(0, m.index - 45), m.index + 45).toLowerCase();
-      let sc = 0; if (/diesel|derv|\bdery\b/.test(ctx)) sc += 3; if (m[3]) sc += 2; if (m[1]) sc += 1; if (/adblue|petrol|unleaded|e10|super/.test(ctx)) sc -= 2;
-      cands.push({ v, sc });
+      if (v < 30 || v > 400) { last = m.index + m[0].length; continue; }
+      const k = kind(t.slice(Math.max(last, m.index - 40), m.index).toLowerCase());   // words just before the number (since the last number)
+      if (k && f[k] == null) f[k] = Math.round(v * 100) / 100; else if (!k) loose.push({ v, sc: (m[3] ? 2 : 0) + (m[1] ? 1 : 0) });
+      last = m.index + m[0].length;
     }
-    if (!cands.length) return null;
-    cands.sort((a, b) => b.sc - a.sc);
-    let p = cands[0].v; if (inc) p /= 1.2;
+    if (!Object.keys(f).length && loose.length) f.diesel = Math.round(loose.sort((a, b) => b.sc - a.sc)[0].v * 100) / 100;   // one unlabelled price = diesel
+    if (!Object.keys(f).length) return null;
     let until = null;
     const dm = t.match(/(?:until|till|to|expires?|valid (?:to|until)|ending|-)\s*(?:\w+day\s*)?(\d{1,2})(?:st|nd|rd|th)?[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/i);
     if (dm) { const y = dm[3] ? (dm[3].length === 2 ? "20" + dm[3] : dm[3]) : String(new Date().getFullYear()); const d = `${y}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`; if (!isNaN(new Date(d))) until = d; }
-    return { p: Math.round(p * 100) / 100, inc, until };
+    return { f, until };
   }
   let stTab = "prices";
   function openSettings(tab) { if (tab) stTab = tab; $("settings").hidden = false; renderSettings(); }
@@ -962,42 +980,48 @@
   }
   function renderPricesTab() {
     const cp = cardPrices(), hid = hiddenCards(), list = cards.filter(hasList), t = todayStr();
-    $("stPrices").innerHTML = `<p class="note">Type this week's price for each card you use (<b>pence per litre, ex VAT</b>), or paste the email / text your provider sends.
-      Each price has an expiry date – when it passes, the price is removed so you always enter the latest one. A card only shows in the filter while it has a current price. Untick <b>Show</b> to hide a card even when it's priced.</p>` +
+    $("stPrices").innerHTML = `<p class="note">Type this week's prices for each card you use – <b>pence per litre, ex VAT</b> – for each fuel your agreement covers
+      (leave the others blank), or paste the email / text your provider sends. Each card's prices have an expiry date – when it passes they're removed so you always enter the latest.
+      A card only shows in the filter while it has a current price. Untick <b>Show</b> to hide a card even when it's priced.</p>` +
       list.map(c => {
         const pr = cp[c.id], soon = pr && pr.until <= addDays(t, 1);
         return `<div class="setrow" data-cid="${esc(c.id)}"><div class="top"><img src="${esc(cardImg(c))}" alt=""><div class="nm"><b>${esc(c.name)}</b>
-          <small class="${soon ? "exp" : ""}">${pr ? `Your price ${pr.p.toFixed(2)}p ex VAT · ${soon ? "expires" : "until"} ${niceDate(pr.until)}` : "No price"}</small></div>
+          <small class="${soon ? "exp" : ""}">${pr ? `${Object.entries(pr.f).map(([k, v]) => fuelLabel(k) + " " + v.toFixed(2) + "p").join(" · ")} ex VAT · ${soon ? "expires" : "until"} ${niceDate(pr.until)}` : "No prices"}</small></div>
           <label><input type="checkbox" data-show${hid.has(c.id) ? "" : " checked"}> Show</label></div>
-          <div class="pin"><input type="number" step="0.01" min="0" inputmode="decimal" data-price placeholder="e.g. 128.50" value="${pr ? pr.p : ""}"> p/litre ex VAT · valid until
-            <input type="date" data-until min="${t}" value="${pr ? pr.until : addDays(t, 7)}">${pr ? ' <button class="lnk" data-clear>Clear</button>' : ""}</div>
+          <div class="fgrid">${CARD_FUELS.map(([k, lab]) => `<label>${lab}<input type="number" step="0.01" min="0" inputmode="decimal" data-fp="${k}" placeholder="–" value="${pr && pr.f[k] ? pr.f[k] : ""}"></label>`).join("")}</div>
+          <div class="pin">p/litre ex VAT · valid until <input type="date" data-until min="${t}" value="${pr ? pr.until : addDays(t, 7)}">${pr ? ' <button class="lnk" data-clear>Clear all</button>' : ""}</div>
           <button class="lnk" data-paste>Paste price email / text</button>
           <div data-pastebox hidden><textarea rows="3" placeholder="Paste the message from your card provider here"></textarea>
-            <button data-parse>Find the price</button><span class="pres"></span></div></div>`;
+            <button data-parse>Find the prices</button><span class="pres"></span></div></div>`;
       }).join("");
   }
-  function setCardPrice(cid, p, until) {
-    const cp = cardPrices();
-    if (p > 0) cp[cid] = { p: Math.round(p * 100) / 100, from: todayStr(), until: until && until >= todayStr() ? until : addDays(todayStr(), 7) };
+  function readCardRow(row) {
+    const f = {}; row.querySelectorAll("[data-fp]").forEach(i => { const v = parseFloat(i.value); if (v > 0) f[i.dataset.fp] = Math.round(v * 100) / 100; });
+    return { f, until: row.querySelector("[data-until]").value };
+  }
+  function setCardPrice(cid, f, until) {
+    const cp = Object.assign({}, prefs.cardPrices || {});
+    if (f && Object.keys(f).length) cp[cid] = { f, from: todayStr(), until: until && until >= todayStr() ? until : addDays(todayStr(), 7) };
     else delete cp[cid];
     savePrefs({ cardPrices: cp }); renderCardChips(); draw(); renderPricesTab();
   }
   $("stPrices").addEventListener("change", e => {
     const row = e.target.closest("[data-cid]"); if (!row) return; const cid = row.dataset.cid;
     if (e.target.matches("[data-show]")) { const h = hiddenCards(); e.target.checked ? h.delete(cid) : h.add(cid); savePrefs({ hiddenCards: [...h] }); renderCardChips(); draw(); return; }
-    if (e.target.matches("[data-price],[data-until]")) setCardPrice(cid, parseFloat(row.querySelector("[data-price]").value), row.querySelector("[data-until]").value);
+    if (e.target.matches("[data-fp],[data-until]")) { const r = readCardRow(row); setCardPrice(cid, r.f, r.until); }
   });
   $("stPrices").addEventListener("click", e => {
     const row = e.target.closest("[data-cid]"); if (!row) return; const cid = row.dataset.cid;
-    if (e.target.matches("[data-clear]")) setCardPrice(cid, 0);
+    if (e.target.matches("[data-clear]")) setCardPrice(cid, null);
     if (e.target.matches("[data-paste]")) { const b = row.querySelector("[data-pastebox]"); b.hidden = !b.hidden; if (!b.hidden) b.querySelector("textarea").focus(); }
     if (e.target.matches("[data-parse]")) {
       const r = parsePrice(row.querySelector("textarea").value), out = row.querySelector(".pres");
-      if (!r) { out.innerHTML = '<span style="color:#b42318">Couldn\'t find a price – type it in the box above.</span>'; return; }
-      row.querySelector("[data-price]").value = r.p; if (r.until) row.querySelector("[data-until]").value = r.until;
-      out.innerHTML = `Found <b>${r.p.toFixed(2)}p</b> ex VAT${r.inc ? " (converted from inc VAT)" : ""}${r.until ? " until " + niceDate(r.until) : ""} – check it, then <button data-useprice>Save</button>`;
+      if (!r) { out.innerHTML = '<span style="color:#b42318">Couldn\'t find a price – type them in the boxes above.</span>'; return; }
+      for (const [k, v] of Object.entries(r.f)) { const i = row.querySelector(`[data-fp="${k}"]`); if (i) i.value = v; }
+      if (r.until) row.querySelector("[data-until]").value = r.until;
+      out.innerHTML = `Found ${Object.entries(r.f).map(([k, v]) => `${fuelLabel(k)} <b>${v.toFixed(2)}p</b>`).join(", ")} ex VAT${r.until ? " until " + niceDate(r.until) : ""} – check them, then <button data-useprice>Save</button>`;
     }
-    if (e.target.matches("[data-useprice]")) setCardPrice(cid, parseFloat(row.querySelector("[data-price]").value), row.querySelector("[data-until]").value);
+    if (e.target.matches("[data-useprice]")) { const r = readCardRow(row); setCardPrice(cid, r.f, r.until); }
   });
   function renderMpgTab() {
     const m = myMpg();
