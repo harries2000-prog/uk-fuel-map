@@ -107,7 +107,9 @@
   <section>
     <h2>Your branding</h2>
     <p>Shown in the bar across the top of the map.</p>
-    <div class="field"><label for="bName">Company name</label><input type="text" id="bName" maxlength="40"></div>
+    <div class="field"><label for="bName">Company name</label><input type="text" id="bName" maxlength="40">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin-top:6px"><input type="checkbox" id="bShowName"> Show the company name in the top bar
+        <span class="muted">(untick if your logo already includes it)</span></label></div>
     <div class="field"><label>Brand colour</label>
       <div class="colrow"><input type="color" id="bColour"><input type="text" id="bHex" maxlength="7"></div>
       <div class="swatches" id="swatches"></div>
@@ -153,7 +155,7 @@
   const DEFAULT_CARDS = ["UK Fuels", "Keyfuels", "FastFuels", "Esso National", "Shell CRT", "Shell Multifleet", "FuelGenie"];
   let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, imgChanges = {}, cardsDirty = false, cardTarget = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
-  const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "" };
+  const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "", showName: true };
   let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
 
   const log = (msg, cls) => { const el = $("log"); el.innerHTML += (el.innerHTML ? "\n" : "") + (cls ? `<span class="${cls}">${msg}</span>` : msg); };
@@ -261,7 +263,7 @@
         logoIndex = idx;
       }
       if (brandDirty) {
-        const out = { name: site.name, colour: site.colour, logo: site.logo };
+        const out = { name: site.name, colour: site.colour, logo: site.logo, showName: site.showName !== false };
         if (newLogo) { out.logo = "brand/logo.png?v=" + Date.now().toString(36); files.push({ path: "docs/brand/logo.png", b64: newLogo.split(",")[1] }); }
         else if (removeLogo) { if (site.logo) files.push({ path: "docs/brand/logo.png", remove: true }); out.logo = ""; }
         files.push({ path: "docs/site.json", content: JSON.stringify(out, null, 1) });
@@ -375,11 +377,14 @@
     const logo = newLogo || (removeLogo ? "" : site.logo);
     $("pvLogo").hidden = !logo; if (logo) $("pvLogo").src = logo;
     $("pvName").textContent = site.name;
+    $("bShowName").checked = site.showName !== false;
+    $("pvName").hidden = site.showName === false;
     $("brandPreview").style.background = site.colour; $("brandPreview").style.color = inkFor(site.colour);
     $("bLogoRm").hidden = !logo; $("bLogoBtn").textContent = logo ? "Change logo" : "Upload logo";
   }
   const markBrand = () => { brandDirty = true; renderBrand(); refreshKeyUI(); $("log").innerHTML = ""; log("Branding changed – press Publish to put it on the map."); };
   $("bName").addEventListener("input", () => { site.name = $("bName").value.trim(); brandDirty = true; $("pvName").textContent = site.name; refreshKeyUI(); });
+  $("bShowName").addEventListener("change", () => { site.showName = $("bShowName").checked; markBrand(); });
   $("bColour").addEventListener("input", () => { site.colour = $("bColour").value; markBrand(); });
   $("bHex").addEventListener("change", () => { const v = $("bHex").value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)) { site.colour = v.toLowerCase(); markBrand(); } else renderBrand(); });
   $("swatches").addEventListener("click", e => { const c = e.target.dataset.c; if (c) { site.colour = c; markBrand(); } });
