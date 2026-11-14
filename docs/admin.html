@@ -9,6 +9,9 @@
   body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:#1d232b; background:#eef1f4; }
   main { max-width:640px; margin:0 auto; padding:18px 14px 40px; }
   h1 { font-size:22px; margin:6px 0 4px; }
+  .topbar { display:flex; align-items:center; gap:12px; background:#000; color:#fff; border-bottom:3px solid #ffe058; border-radius:12px; padding:10px 14px; margin:4px 0 10px; }
+  .topbar img { height:36px; }
+  .topbar span { margin-left:auto; font-weight:700; color:#ffe058; }
   .sub { color:#5a6572; font-size:14px; margin:0 0 16px; }
   section { background:#fff; border-radius:12px; padding:14px 16px; margin:12px 0; box-shadow:0 1px 4px #0001; }
   h2 { font-size:16px; margin:0 0 6px; }
@@ -17,17 +20,17 @@
   label.file.ready { border-color:#1e9e4a; background:#f1fbf4; }
   input[type=file] { display:none; }
   input[type=password], input[type=text] { width:100%; box-sizing:border-box; padding:9px 10px; font-size:15px; border:1px solid #c5ccd5; border-radius:8px; }
-  button { font:inherit; font-size:15px; padding:10px 14px; border-radius:9px; border:0; background:#1e6fd9; color:#fff; cursor:pointer; }
+  button { font:inherit; font-size:15px; padding:10px 14px; border-radius:9px; border:0; background:#000; color:#ffe058; cursor:pointer; }
   button.secondary { background:#e6ebf0; color:#1d232b; }
   button:disabled { opacity:.5; cursor:default; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
   #log { white-space:pre-wrap; font:13px/1.5 ui-monospace, Consolas, monospace; background:#f6f8fa; border-radius:8px; padding:10px; min-height:20px; }
   .ok { color:#1e7a3c; } .err { color:#b42318; }
-  a { color:#1e6fd9; }
+  a { color:#1d232b; text-decoration-color:#e0b800; text-decoration-thickness:2px; }
   .muted { color:#6b7684; font-size:13px; }
   .tabs { display:flex; gap:6px; margin:4px 0 2px; }
   .tabs button { background:#dfe5ec; color:#1d232b; }
-  .tabs button.on { background:#1e6fd9; color:#fff; }
+  .tabs button.on { background:#000; color:#ffe058; }
   #brandSearch { margin:6px 0 8px; }
   .brands { max-height:60vh; overflow:auto; border:1px solid #e3e8ee; border-radius:8px; }
   .brow { display:flex; align-items:center; gap:10px; padding:6px 8px; border-bottom:1px solid #eef1f4; font-size:14px; }
@@ -59,24 +62,14 @@
   .linkbtn { background:none !important; color:#b42318 !important; padding:6px 4px !important; }
   .field { margin:10px 0; }
   .field label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; }
-  .colrow { display:flex; gap:8px; align-items:center; }
-  .colrow input[type=color] { width:52px; height:40px; padding:0; border:1px solid #c5ccd5; border-radius:8px; background:#fff; }
-  .colrow input[type=text] { width:120px; }
-  .swatches { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
-  .swatches button { width:28px; height:28px; padding:0; border-radius:6px; border:2px solid #fff; box-shadow:0 0 0 1px #c5ccd5; }
-  #brandPreview { display:flex; align-items:center; gap:10px; height:54px; padding:0 12px; border-radius:10px; margin-top:8px; box-shadow:0 2px 8px #0003; }
-  #brandPreview .mb { width:36px; height:34px; border-radius:8px; border:1.5px solid currentColor; opacity:.7; display:flex; align-items:center; justify-content:center; font-size:18px; }
-  #brandPreview img { max-height:38px; max-width:160px; }
-  #brandPreview .nm { font-weight:800; font-size:16px; }
-  #brandPreview .fake { margin-left:auto; background:#fff; border-radius:8px; height:34px; width:40%; }
 </style>
 </head>
 <body>
 <main>
-  <h1>UK Fuel Map – Admin</h1>
+  <div class="topbar"><img src="brand/logo.png" alt="Atlantis Transport Services Ltd"><span>Fuel map admin</span></div>
   <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
 
-  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnProv">Card providers</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button><button id="tabBtnLinks">Share links</button></div>
+  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnProv">Card providers</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnLinks">Share links</button></div>
 
   <div id="tabData">
   <section>
@@ -164,30 +157,6 @@
   </section>
   </div>
 
-  <div id="tabBrand" hidden>
-  <section>
-    <h2>Your branding</h2>
-    <p>Shown in the bar across the top of the map.</p>
-    <div class="field"><label for="bName">Company name</label><input type="text" id="bName" maxlength="40">
-      <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin-top:6px"><input type="checkbox" id="bShowName"> Show the company name in the top bar
-        <span class="muted">(untick if your logo already includes it)</span></label></div>
-    <div class="field"><label>Brand colour</label>
-      <div class="colrow"><input type="color" id="bColour"><input type="text" id="bHex" maxlength="7"></div>
-      <div class="swatches" id="swatches"></div>
-    </div>
-    <div class="field"><label>Company logo</label>
-      <div class="row" style="margin-top:0">
-        <button class="secondary" id="bLogoBtn">Upload logo</button>
-        <button class="linkbtn" id="bLogoRm" hidden>Remove logo</button>
-      </div>
-      <p class="muted">Any size – it's fitted into a <b>480 × 120</b> box (wide). A <b>PNG with a transparent background</b> looks best.
-        On phones the logo replaces the company name to save space.</p>
-      <input type="file" id="bLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp">
-    </div>
-    <div class="field"><label>Preview</label><div id="brandPreview"><div class="mb">☰</div><img id="pvLogo" alt="" hidden><span class="nm" id="pvName"></span><div class="fake"></div></div></div>
-    <div class="row"><button class="secondary" id="bReset">Reset to Atlantis Transport default</button></div>
-  </section>
-  </div>
 
   <section>
     <h2 id="pubTitle">3. Publish</h2>
@@ -218,15 +187,13 @@
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
   // card providers: who supplies the card decides the surcharges. providers/index.json = { providers:[{id,name,logo,sur:{cardId:{file,count,updated}}}] }
   let provIndex = { providers: [] }, provLogo = {}, provSur = {}, provDrop = {}, provDirty = false, provTarget = null, provMatch = {};
-  const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "", showName: true };
-  let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
 
   const log = (msg, cls) => { const el = $("log"); el.innerHTML += (el.innerHTML ? "\n" : "") + (cls ? `<span class="${cls}">${msg}</span>` : msg); };
   const getKey = () => { try { return localStorage.getItem(KEY_LS) || ""; } catch (e) { return ""; } };
   function refreshKeyUI() {
     const k = getKey();
     $("keyBox").hidden = !!k; $("forget").hidden = !k;
-    $("publish").disabled = !(ffFile || cardsDirty || provDirty || Object.keys(logoChanges).length || brandDirty);
+    $("publish").disabled = !(ffFile || cardsDirty || provDirty || Object.keys(logoChanges).length);
   }
 
   function pick(input, label, nameEl, setter) {
@@ -352,20 +319,11 @@
         what.push(lc.length + " brand logo" + (lc.length > 1 ? "s" : ""));
         logoIndex = idx;
       }
-      if (brandDirty) {
-        const out = { name: site.name, colour: site.colour, logo: site.logo, showName: site.showName !== false };
-        if (newLogo) { out.logo = "brand/logo.png?v=" + Date.now().toString(36); files.push({ path: "docs/brand/logo.png", b64: newLogo.split(",")[1] }); }
-        else if (removeLogo) { if (site.logo) files.push({ path: "docs/brand/logo.png", remove: true }); out.logo = ""; }
-        files.push({ path: "docs/site.json", content: JSON.stringify(out, null, 1) });
-        what.push("branding");
-        site = out;
-      }
       if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
       cardChanges = {}; imgChanges = {}; surChanges = {}; cardsDirty = false; renderCards();
       provLogo = {}; provSur = {}; provDrop = {}; provDirty = false; renderProv();
-      brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
       log("✓ Published. ⏳ It can take a couple of minutes to show on the map – then refresh the map page.", "ok");
@@ -382,20 +340,18 @@
   }).catch(() => $("current").textContent = "No price data published yet.");
   // ---- Tabs ----
   function showTab(which) {
-    $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos"; $("tabBrand").hidden = which !== "brand";
+    $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos";
     $("tabCards").hidden = which !== "cards"; $("tabBtnCards").classList.toggle("on", which === "cards");
     $("tabProv").hidden = which !== "prov"; $("tabBtnProv").classList.toggle("on", which === "prov");
     $("tabLinks").hidden = which !== "links"; $("tabBtnLinks").classList.toggle("on", which === "links");
     $("publish").closest("section").hidden = which === "links";
     if (which === "links") buildLinkUI();
     $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
-    $("tabBtnBrand").classList.toggle("on", which === "brand");
-    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card changes", prov: "Publish provider changes", logos: "Publish logo changes", brand: "Publish branding" }[which];
+    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card changes", prov: "Publish provider changes", logos: "Publish logo changes" }[which];
     if (which === "logos" && !brands.length) loadBrands();
   }
   $("tabBtnData").onclick = () => showTab("data");
   $("tabBtnLogos").onclick = () => showTab("logos");
-  $("tabBtnBrand").onclick = () => showTab("brand");
   $("tabBtnCards").onclick = () => showTab("cards");
   $("tabBtnProv").onclick = () => { showTab("prov"); renderProv(); refreshProvMatches(); };
   $("tabBtnLinks").onclick = () => showTab("links");
@@ -657,48 +613,6 @@
   };
   fetch("providers/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
     .then(j => { if (j && j.providers) provIndex = j; renderProv(); }).catch(renderProv);
-
-  // ---- Branding ----
-  const SWATCHES = ["#0b2545", "#13315c", "#1d3557", "#0f4c3a", "#1b5e20", "#7a1f1f", "#b71c1c", "#e65100", "#f2b705", "#222831", "#4a4e69", "#005f73"];
-  $("swatches").innerHTML = SWATCHES.map(c => `<button style="background:${c}" data-c="${c}" title="${c}"></button>`).join("");
-  const inkFor = c => ((parseInt(c.slice(1, 3), 16) * 299 + parseInt(c.slice(3, 5), 16) * 587 + parseInt(c.slice(5, 7), 16) * 114) / 1000) > 160 ? "#1d232b" : "#fff";
-  function renderBrand() {
-    $("bName").value = site.name; $("bColour").value = site.colour; $("bHex").value = site.colour;
-    const logo = newLogo || (removeLogo ? "" : site.logo);
-    $("pvLogo").hidden = !logo; if (logo) $("pvLogo").src = logo;
-    $("pvName").textContent = site.name;
-    $("bShowName").checked = site.showName !== false;
-    $("pvName").hidden = site.showName === false;
-    $("brandPreview").style.background = site.colour; $("brandPreview").style.color = inkFor(site.colour);
-    $("bLogoRm").hidden = !logo; $("bLogoBtn").textContent = logo ? "Change logo" : "Upload logo";
-  }
-  const markBrand = () => { brandDirty = true; renderBrand(); refreshKeyUI(); $("log").innerHTML = ""; log("Branding changed – press Publish to put it on the map."); };
-  $("bName").addEventListener("input", () => { site.name = $("bName").value.trim(); brandDirty = true; $("pvName").textContent = site.name; refreshKeyUI(); });
-  $("bShowName").addEventListener("change", () => { site.showName = $("bShowName").checked; markBrand(); });
-  $("bColour").addEventListener("input", () => { site.colour = $("bColour").value; markBrand(); });
-  $("bHex").addEventListener("change", () => { const v = $("bHex").value.trim(); if (/^#[0-9a-f]{6}$/i.test(v)) { site.colour = v.toLowerCase(); markBrand(); } else renderBrand(); });
-  $("swatches").addEventListener("click", e => { const c = e.target.dataset.c; if (c) { site.colour = c; markBrand(); } });
-  $("bLogoBtn").onclick = () => { $("bLogoFile").value = ""; $("bLogoFile").click(); };
-  $("bLogoRm").onclick = () => { newLogo = null; removeLogo = true; markBrand(); };
-  $("bReset").onclick = () => { site = Object.assign({}, BRAND_DEFAULT, { logo: site.logo }); newLogo = null; removeLogo = !!site.logo; markBrand(); };
-  $("bLogoFile").addEventListener("change", async () => {
-    const f = $("bLogoFile").files[0]; if (!f) return;
-    try { newLogo = await fitImage(f, 480, 120); removeLogo = false; markBrand(); }
-    catch (e) { $("log").innerHTML = ""; log("✗ Couldn't read that image file.", "err"); }
-  });
-  async function fitImage(f, W, H) {
-    const url = URL.createObjectURL(f);
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
-    const w = img.naturalWidth || W, h = img.naturalHeight || H, s = Math.min(W / w, H / h);
-    const dw = Math.round(w * s), dh = Math.round(h * s);
-    const c = document.createElement("canvas"); c.width = dw; c.height = dh;   // trimmed to the logo, no padding
-    const g = c.getContext("2d"); g.imageSmoothingQuality = "high";
-    g.drawImage(img, 0, 0, dw, dh);
-    URL.revokeObjectURL(url);
-    return c.toDataURL("image/png");
-  }
-  fetch("site.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
-    .then(j => { if (j) site = Object.assign({}, BRAND_DEFAULT, j); renderBrand(); }).catch(renderBrand);
 
   // ---- Brand logos ----
   async function loadBrands() {
