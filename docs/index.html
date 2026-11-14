@@ -112,6 +112,7 @@
   .pp > summary .ps.no { color:#9a6200; }
   .pp .pb { padding:4px 8px 6px; }
   .pp .cards { border:0; margin:0; border-radius:0; max-height:200px; overflow-y:auto; }
+  .leaflet-popup-scrolled { border:0 !important; padding-right:4px; scrollbar-width:thin; }
   .pp .cards .ch { position:sticky; top:0; z-index:1; }
   .f-diesel  { background:#111; }
   .f-pdiesel { background:#111; color:#f2c94c; }
@@ -601,7 +602,7 @@
         renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: s.cat === "grey" ? COLORS.grey : COLORS.amber
       });
       if (s.cat !== "grey") shown++;
-      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 240, minWidth: 220, autoPanPadding: [8, 60] } : { maxWidth: 280, minWidth: 260 });
+      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 240, minWidth: 220, maxHeight: Math.min(380, innerHeight - 140), autoPanPadding: [8, 60] } : { maxWidth: 280, minWidth: 260, maxHeight: Math.min(480, innerHeight - 160) });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
