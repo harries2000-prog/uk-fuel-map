@@ -141,7 +141,7 @@
     <p id="log"></p>
   </section>
 
-  <p class="muted">The map updates about a minute after publishing. Data: GOV.UK Fuel Finder (Open Government Licence v3.0).</p>
+  <p class="muted">Changes can take a couple of minutes to show on the map after publishing. Data: GOV.UK Fuel Finder (Open Government Licence v3.0).</p>
 </main>
 
 <script src="convert.js"></script>
@@ -277,7 +277,7 @@
       brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
-      log("✓ Published. The map will show it in about a minute.", "ok");
+      log("✓ Published. ⏳ It can take a couple of minutes to show on the map – then refresh the map page.", "ok");
     } catch (e) {
       log("✗ " + e.message, "err");
       if (e.status === 401) { try { localStorage.removeItem(KEY_LS); } catch (x) {} }
