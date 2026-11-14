@@ -509,7 +509,7 @@
     const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
     const sel = chosenCards(), showClosed = $("showClosed").checked;
     const onlyCard = sel.length > 0 && !$("showOthers").checked, hideNoHgv = sel.length > 0 && $("hideNoHgv").checked;
-    const anyFuel = want.diesel || want.unleaded || want.adblue || want.electric;
+    const anyFuel = Object.values(want).some(Boolean);
     drawEv(want.electric);
     const counts = { green:0, amber:0, red:0, grey:0 };
     // draw amber first so green/red sit on top where they overlap
