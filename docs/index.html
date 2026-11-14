@@ -283,6 +283,9 @@
   // card providers (Admin → Card providers): surcharges depend on who supplies the card
   let providers = [], selProvider = "";   // [{id, name, logo, surRows:{cardId:[rows]}}]
   const curProvider = () => providers.find(p => p.id === selProvider) || null;
+  // "Other" is built in: no surcharges, and the default until someone picks their provider
+  const OTHER = { id: "other", name: "Other", logo: "", surRows: {}, builtin: true };
+  const OTHER_ICON = '<svg viewBox="0 0 48 30" width="48" height="30" aria-hidden="true"><rect x="1" y="1" width="46" height="28" rx="4" fill="#fff" stroke="#9aa3ad" stroke-width="2"/><rect x="1" y="7" width="46" height="5" fill="#9aa3ad"/><rect x="6" y="18" width="16" height="3" rx="1.5" fill="#c5ccd5"/></svg>';
   function useProvider() {   // put the chosen provider's surcharges on the cards, then re-match
     const p = curProvider();
     for (const c of cards) c.surRows = (p && p.surRows[c.id]) || [];
@@ -294,8 +297,8 @@
     $("provList").innerHTML = providers.map(q => {
       const n = Object.keys(q.surRows).filter(id => q.surRows[id].length).map(id => (cards.find(c => c.id === id) || { name: id }).name);
       return `<label class="prov${q.id === selProvider ? " on" : ""}"><input type="radio" name="prov" value="${esc(q.id)}"${q.id === selProvider ? " checked" : ""}>
-        <span class="pl">${q.logo ? `<img src="providers/${esc(q.logo)}" alt="">` : ""}</span>
-        <span>${esc(q.name)}<small>${n.length ? "Surcharges: " + esc(n.join(", ")) : "No surcharge lists yet"}</small></span></label>`;
+        <span class="pl">${q.logo ? `<img src="providers/${esc(q.logo)}" alt="">` : q.builtin ? OTHER_ICON : ""}</span>
+        <span>${esc(q.name)}<small>${q.builtin ? "No surcharges" : n.length ? "Surcharges: " + esc(n.join(", ")) : "No surcharge lists yet"}</small></span></label>`;
     }).join("");
   }
   const cardImg = c => c.img ? "cards/" + c.img : FuelMap.dummyCardImg(c.name);
@@ -716,6 +719,7 @@
         return { id: p.id, name: p.name, logo: p.logo || "", surRows };
       }));
     } catch (e) { providers = []; }
+    finally { providers.push(OTHER); }
   }
   // ---------- preferences ----------
   // One object holds everything a user can save: { filters:{...}, ...more later }.
@@ -778,7 +782,7 @@
     }).catch(() => {});
     fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => logos = j || {}).catch(() => {});
     await Promise.all([loadCards(), loadProviders()]);
-    if (!providers.some(p => p.id === selProvider)) selProvider = (providers.find(p => Object.values(p.surRows).some(r => r.length)) || providers[0] || {}).id || "";
+    if (!providers.some(p => p.id === selProvider)) selProvider = OTHER.id;
     useProvider();
     try { $("provBox").open = localStorage.getItem("fuelmap-prov-open") === "1"; } catch (e) {}
     try {
