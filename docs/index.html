@@ -169,6 +169,19 @@
   .cchip.on { border-color:var(--brand); background:#fff8d6; }
   .cchip.on::after { content:"✓"; position:absolute; top:2px; right:5px; width:16px; height:16px; line-height:16px; text-align:center; border-radius:50%; font-size:11px; font-weight:800; color:var(--accent); background:var(--brand); }
   .cchip.off { opacity:.45; cursor:default; }
+  /* nearby box: nearest station, nearest taking the card, cheapest within 5/10/15/20 miles */
+  #nearby { position:absolute; left:10px; bottom:26px; z-index:1000; width:310px; max-width:calc(100vw - 20px); background:#fff; border-radius:10px; box-shadow:0 2px 12px #0004; font-size:13px; }
+  #nearby[hidden] { display:none; }
+  #nearby .nh { display:flex; align-items:center; gap:6px; background:#000; color:#ffe058; padding:7px 10px; border-radius:10px 10px 0 0; cursor:pointer; font-weight:700; user-select:none; }
+  #nearby .nh small { color:#bbb; font-weight:400; margin-left:auto; font-size:11.5px; }
+  #nearby.closed .nh { border-radius:10px; } #nearby.closed .nb { display:none; }
+  #nearby .nb { max-height:min(52vh, 430px); overflow-y:auto; }
+  #nearby .nsec { padding:4px 10px 2px; font-size:11px; color:#6b7684; text-transform:uppercase; letter-spacing:.3px; background:#f6f8fa; border-top:1px solid #eef1f4; }
+  #nearby .nrow { padding:6px 10px; border-top:1px solid #eef1f4; cursor:pointer; line-height:1.35; }
+  #nearby .nrow:hover { background:#fff8d6; } #nearby .nrow.none { cursor:default; color:#889; }
+  #nearby .nl { display:inline-block; min-width:56px; font-weight:700; } #nearby .nd { color:#556; }
+  #nearby .ok { color:#1e7a3c; font-weight:600; } #nearby .no { color:#b42318; font-weight:600; } #nearby .pay { color:#000; background:#ffe058; border-radius:4px; padding:0 4px; font-weight:700; }
+  @media (max-width:600px) { #nearby { left:8px; bottom:22px; width:auto; right:8px; } }
   /* my settings / cost per mile */
   #mySettings { width:100%; margin-top:6px; font-weight:700; background:#fff; border:2px solid #000; }
   #mySettings:hover { background:#fff8d6; }
@@ -244,6 +257,7 @@
   <button id="locate" title="Show my location">📍</button>
 </header>
 <div id="map"></div>
+<div id="nearby" hidden><div class="nh" id="nearHead">📍 Nearby<small id="nearFrom"></small><span id="nearTog">▾</span></div><div class="nb" id="nearBody"></div></div>
 <div id="settings" hidden><div class="sbox">
   <div class="shead"><b>My settings</b><small>Saved on this device only</small><button id="closeSettings" aria-label="Close">✕</button></div>
   <div class="stabs"><button data-st="prices" class="on">Fuel card prices</button><button data-st="veh">MPG</button><button data-st="backup">Export / import</button></div>
@@ -535,7 +549,7 @@
     updateKey(sel);
     // no price/surcharge colours possible: every open station is amber
     $("k-green").hidden = true; $("k-red").hidden = true; $("kl-amber").textContent = "Fuel station"; $("c-amber").textContent = shown.toLocaleString();
-    recolour();
+    recolour(); renderNearby();
     savePrefs({ filters: { want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed, colourBy: cbyPref, provider: selProvider } });
     const nActive = Object.values(want).filter(Boolean).length + sel.length + (hideNoHgv ? 1 : 0);
     $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
@@ -653,6 +667,79 @@
     map.on("zoomend", sync); sync();
   }
 
+
+  // ---------- Nearby: nearest station, nearest taking the ticked card(s), cheapest within 5 / 10 / 15 / 20 miles ----------
+  // Cheapest compares like with like, ex VAT: your card price + surcharge for each ticked card the station takes,
+  // or the pump price ex VAT if paying at the pump works out cheaper (or no card is ticked).
+  let meLL = null;
+  const milesBetween = (a, b, c, d) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.sqrt(x * x + y * y) * 3958.8; };
+  const nearFuel = () => { const w = ["diesel", "unleaded"].filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; }); return w.length === 1 ? w[0] : "diesel"; };
+  function nearCands() {   // open stations that pass the fuel filter (card filter ignored – we say whether each takes the card)
+    const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
+    const anyFuel = want.diesel || want.unleaded || want.adblue, sel = chosenCards();
+    return stations.filter(s => {
+      if (s.tc) return false;
+      if (s.extra) return sel.some(c => s.cards[c.id]) && (!anyFuel || want.diesel);
+      return !anyFuel || (want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) || (want.adblue && (s.am || []).includes("adblue_pumps"));
+    });
+  }
+  function bestCost(s, fk, sel, cp) {   // cheapest way to pay here, pence per litre ex VAT
+    const opts = [];
+    const pump = s.extra ? null : priceOf(s, fk);
+    if (pump != null) opts.push({ v: pump / 1.2, how: "pump", txt: `pump ${pump.toFixed(1)}p (${(pump / 1.2).toFixed(1)}p ex VAT)` });
+    if (fk === "diesel") for (const c of sel) {
+      const h = s.cards[c.id], pr = cp[c.id]; if (!h || !pr) continue;
+      const sur = parseFloat(String(h.sur || "").replace(/[^0-9.]/g, "")) || 0;
+      opts.push({ v: pr.p + sur, how: c.name, txt: `${esc(c.name)} ${pr.p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""}` });
+    }
+    return opts.sort((a, b) => a.v - b.v)[0] || null;
+  }
+  function renderNearby() {
+    const box = $("nearby"); if (!stations.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const from = meLL || map.getCenter(), sel = chosenCards(), fk = nearFuel(), cp = cardPrices(), mpg = myMpg();
+    $("nearFrom").textContent = meLL ? "from your location" : "map centre – allow location for yours";
+    const list = nearCands().map(s => [s, milesBetween(from.lat, from.lng, s.y, s.x)]).filter(x => x[1] <= 20).sort((a, b) => a[1] - b[1]);
+    const takes = s => sel.filter(c => s.cards[c.id]);
+    const cardTxt = s => !sel.length ? "" : takes(s).length ? ` · <span class="ok">✓ ${esc(takes(s).map(c => c.name).join(", "))}</span>`
+      : ` · <span class="no">✗ no ${sel.length === 1 ? esc(sel[0].name) : "ticked card"}</span>`;
+    const head = (s, d) => `<b>${esc(title(s.n))}</b> <small>${esc(s.b || "")}</small><br><span class="nd">${d.toFixed(1)} mi</span>`;
+    const none = (lab, why) => `<div class="nrow none"><span class="nl">${lab}</span> ${why}</div>`;
+    let h = "";
+    const near = list[0];
+    h += `<div class="nsec">Nearest</div>`;
+    h += near ? `<div class="nrow" data-nid="${esc(near[0].id)}">${head(near[0], near[1])}${cardTxt(near[0])}</div>` : none("", "No stations within 20 miles");
+    if (sel.length) {
+      const nc = list.find(([s]) => takes(s).length);
+      if (!near || nc !== near) h += nc ? `<div class="nrow" data-nid="${esc(nc[0].id)}"><span class="nl">With card</span> ${head(nc[0], nc[1])}${cardTxt(nc[0])}</div>`
+        : none("With card", `No ${sel.length === 1 ? esc(sel[0].name) : "ticked card"} site within 20 miles`);
+    }
+    h += `<div class="nsec">Cheapest ${fk}${sel.length ? " – card or pump, whichever is less" : " – pump price"} (ex VAT)</div>`;
+    const costed = list.map(([s, d]) => [s, d, bestCost(s, fk, sel, cp)]).filter(x => x[2]);
+    for (const r of [5, 10, 15, 20]) {
+      const best = costed.filter(x => x[1] <= r).sort((a, b) => a[2].v - b[2].v || a[1] - b[1])[0];
+      if (!best) { h += none(r + " mi", "nothing priced"); continue; }
+      const [s, d, b] = best;
+      h += `<div class="nrow" data-nid="${esc(s.id)}"><span class="nl">≤ ${r} mi</span> <span class="pay">${b.v.toFixed(1)}p</span> ${b.how === "pump" ? "at the pump" : "on " + esc(b.how)}${mpg ? ` · ≈ ${ppm(b.v, mpg).toFixed(1)}p/mile` : ""}<br>
+        ${head(s, d)} · <small>${b.txt}</small></div>`;
+    }
+    if (sel.length && fk !== "diesel") h += `<div class="nrow none">Card prices are for diesel, so unleaded shows pump prices only.</div>`;
+    $("nearBody").innerHTML = h;
+  }
+  $("nearHead").onclick = () => {
+    const closed = $("nearby").classList.toggle("closed"); $("nearTog").textContent = closed ? "▸" : "▾";
+    try { localStorage.setItem("fuelmap-near-open", closed ? "0" : "1"); } catch (e) {}
+  };
+  try { const o = localStorage.getItem("fuelmap-near-open"); if (o === "0" || (o == null && SMALL)) { $("nearby").classList.add("closed"); $("nearTog").textContent = "▸"; } } catch (e) {}
+  $("nearBody").addEventListener("click", e => {
+    const row = e.target.closest("[data-nid]"); if (!row) return;
+    const s = stations.find(x => x.id === row.dataset.nid); if (!s) return;
+    map.setView([s.y, s.x], Math.max(map.getZoom(), 14));
+    setTimeout(() => { const m = markers.find(m => m.s === s);
+      if (m) m.openPopup(); else L.popup(SMALL ? { maxWidth: 240, minWidth: 220 } : { maxWidth: 280, minWidth: 260 }).setLatLng([s.y, s.x]).setContent(popup(s, chosenCards())).openOn(map); }, 350);
+  });
+  map.on("moveend", () => { if (!meLL) renderNearby(); });
+
   // ---------- search & locate ----------
   $("search").addEventListener("keydown", async e => {
     if (e.key !== "Enter") return;
@@ -690,6 +777,7 @@
       if (me) me.remove();
       me = L.circleMarker(ll, { renderer: canvas, radius: 8, color: "#fff", weight: 3, fillColor: "#1769e0", fillOpacity: 1, interactive: false }).addTo(map);
       map.fitBounds(ll.toBounds(32000));   // ~20 miles across
+      meLL = ll; renderNearby();
       status("", 0);
     }, () => { if (!auto) status("Couldn't get your location", 3000); }, { enableHighAccuracy: !auto, timeout: 10000, maximumAge: 300000 });
   }
