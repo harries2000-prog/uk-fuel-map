@@ -82,27 +82,36 @@
   #status { top:calc(var(--bar) + 8px); left:50%; transform:translateX(-50%); max-width:360px; display:none; z-index:1004; }
   #drawer .links2 { margin-top:14px; padding-top:10px; border-top:1px solid #e6eaef; font-size:13px; }
   #drawer .links2 a { color:var(--brand); font-weight:600; text-decoration-color:var(--accent); text-decoration-thickness:2px; }
-  .pop h3 { margin:0 0 2px; font-size:15px; }
+  .pop h3 { margin:0 0 1px; font-size:14px; line-height:1.2; }
   .pop .head { display:flex; align-items:center; gap:10px; }
-  .pop .head img { width:96px; height:48px; object-fit:contain; flex:none; }
-  .pop .sub { color:#556; font-size:12px; margin-bottom:6px; }
+  .pop .head img { width:64px; height:32px; object-fit:contain; flex:none; }
+  .pop .sub { color:#556; font-size:11.5px; margin-bottom:3px; }
   @font-face { font-family:"Seg7"; src:url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2") format("woff2"); font-display:swap; }
   @font-face { font-family:"Seg14"; src:url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG14-Classic/DSEG14Classic-Bold.woff2") format("woff2"); font-display:swap; }
   /* forecourt price sign */
-  .sign { background:#22272e; border-radius:8px; padding:5px; margin:6px 0 4px; box-shadow:inset 0 0 0 2px #3a414b; }
-  .srow { display:flex; align-items:stretch; gap:5px; }
-  .srow + .srow { margin-top:5px; }
-  .slabel .exv { margin-left:auto; padding-left:6px; font:600 11px/1.1 system-ui, sans-serif; letter-spacing:0; text-transform:none;
-                 opacity:.85; text-align:right; white-space:nowrap; }
-  .slabel { flex:1; display:flex; align-items:center; padding:0 10px; border-radius:4px; color:#fff;
-            font-weight:800; font-size:13px; letter-spacing:.6px; text-transform:uppercase; line-height:1.1; }
-  .lcd { position:relative; min-width:118px; box-sizing:border-box; text-align:right; padding:6px 22px 6px 8px; border-radius:4px;
+  .sign { background:#22272e; border-radius:7px; padding:4px; margin:5px 0 3px; box-shadow:inset 0 0 0 2px #3a414b; }
+  .srow { display:grid; grid-template-columns:1fr 104px; gap:4px; }
+  .srow + .srow { margin-top:4px; }
+  .slabel { display:flex; flex-direction:column; justify-content:center; padding:2px 8px; border-radius:4px; color:#fff; min-width:0;
+            font-weight:800; font-size:11.5px; letter-spacing:.4px; text-transform:uppercase; line-height:1.15; }
+  .slabel .exv { font:600 10px/1.2 system-ui, sans-serif; letter-spacing:0; text-transform:none; opacity:.8; white-space:nowrap; }
+  .lcd { position:relative; display:flex; align-items:center; justify-content:center; gap:2px; padding:4px 4px; border-radius:4px;
          background:linear-gradient(180deg,#ffe36b 0%,#f6c21c 55%,#eab308 100%); color:#141414;
-         box-shadow:inset 0 0 7px rgba(0,0,0,.35); font:26px/1 "Seg7", ui-monospace, monospace; white-space:nowrap; }
-  .lcd .ghost { position:absolute; right:22px; top:6px; color:#141414; opacity:.07; pointer-events:none; }
-  .lcd .unit { position:absolute; right:6px; bottom:7px; font:700 12px/1 system-ui, sans-serif; }
-  .lcd.word { font-family:"Seg14", ui-monospace, monospace; font-size:20px; padding-top:9px; padding-bottom:9px; }
-  .lcd.word .ghost { top:9px; }
+         box-shadow:inset 0 0 6px rgba(0,0,0,.35); font:20px/1 "Seg7", ui-monospace, monospace; white-space:nowrap; }
+  .lcd .dig { position:relative; }
+  .lcd .ghost { position:absolute; left:0; top:0; color:#141414; opacity:.07; pointer-events:none; }
+  .lcd .unit { font:700 10px/1 system-ui, sans-serif; align-self:flex-end; margin-bottom:1px; }
+  .lcd.word { font-family:"Seg14", ui-monospace, monospace; font-size:15px; }
+  /* collapsible panels in the popup */
+  .pp { border:1px solid #e3e8ee; border-radius:6px; margin:5px 0 0; overflow:hidden; }
+  .pp > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:6px; padding:4px 8px; background:#f3f5f8; font-size:11px; font-weight:700; color:#445; text-transform:uppercase; letter-spacing:.3px; }
+  .pp > summary::-webkit-details-marker { display:none; }
+  .pp > summary::after { content:"▾"; margin-left:auto; font-size:12px; transition:transform .15s; }
+  .pp[open] > summary::after { transform:rotate(180deg); }
+  .pp > summary .ps { text-transform:none; letter-spacing:0; font-weight:600; color:#1e7a3c; }
+  .pp > summary .ps.no { color:#9a6200; }
+  .pp .pb { padding:4px 8px 6px; }
+  .pp .cards { border:0; margin:0; border-radius:0; }
   .f-diesel  { background:#111; }
   .f-pdiesel { background:#111; color:#f2c94c; }
   .f-b10     { background:#3b3f45; }
@@ -123,8 +132,8 @@
   .crow.sel { background:#eef8f1; }
   .crow.no { background:#fff6e5; } .crow.no .csur { color:#9a6200; font-weight:500; }
   .crow .tag { margin:0; }
-  .pop .links { display:flex; align-items:center; gap:10px; margin-top:8px; }
-  .pop .links a.nav { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px;
+  .pop .links { display:flex; align-items:center; gap:10px; margin-top:6px; }
+  .pop .links a.nav { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9px;
                       background:#1a73e8; color:#fff !important; box-shadow:0 1px 3px #0004; }
   .pop .links a.nav:hover { background:#1558b0; }
   .pop .links a.tel { color:#1d232b; text-decoration:none; font-variant-numeric:tabular-nums; }
@@ -180,17 +189,17 @@
   #settings .stabs button.on { background:#000; color:#ffe058; border-color:#000; }
   #settings .spane { padding:10px 14px 16px; font-size:14px; }
   #settings .note { font-size:12.5px; color:#5a6572; margin:4px 0 10px; }
-  .srow { border:1px solid #e1e6ec; border-radius:10px; padding:8px 10px; margin:8px 0; }
-  .srow .top { display:flex; align-items:center; gap:10px; }
-  .srow .top img { width:56px; height:35px; object-fit:cover; border-radius:4px; box-shadow:0 1px 2px #0003; }
-  .srow .top .nm { display:flex; flex-direction:column; line-height:1.2; }
-  .srow .top .nm small { color:#6b7684; font-size:12px; } .srow .top .nm small.exp { color:#b42318; }
-  .srow .top label { margin-left:auto; font-size:12.5px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
-  .srow .pin { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:7px; font-size:13px; }
-  .srow input[type=number] { width:90px; } .srow input, .vform input, .vform select { padding:6px 7px; border:1px solid #c5ccd5; border-radius:7px; font:inherit; font-size:14px; }
-  .srow .lnk, .vrow .lnk { background:none; border:0; color:#000; text-decoration:underline; text-decoration-color:#e0b800; text-decoration-thickness:2px; padding:4px 2px; font-size:13px; }
-  .srow textarea { width:100%; box-sizing:border-box; margin-top:6px; font:inherit; font-size:13px; padding:6px; border:1px solid #c5ccd5; border-radius:7px; }
-  .srow .pres { font-size:12.5px; margin-left:6px; }
+  .setrow { border:1px solid #e1e6ec; border-radius:10px; padding:8px 10px; margin:8px 0; }
+  .setrow .top { display:flex; align-items:center; gap:10px; }
+  .setrow .top img { width:56px; height:35px; object-fit:cover; border-radius:4px; box-shadow:0 1px 2px #0003; }
+  .setrow .top .nm { display:flex; flex-direction:column; line-height:1.2; }
+  .setrow .top .nm small { color:#6b7684; font-size:12px; } .setrow .top .nm small.exp { color:#b42318; }
+  .setrow .top label { margin-left:auto; font-size:12.5px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  .setrow .pin { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:7px; font-size:13px; }
+  .setrow input[type=number] { width:90px; } .setrow input, .vform input, .vform select { padding:6px 7px; border:1px solid #c5ccd5; border-radius:7px; font:inherit; font-size:14px; }
+  .setrow .lnk, .vrow .lnk { background:none; border:0; color:#000; text-decoration:underline; text-decoration-color:#e0b800; text-decoration-thickness:2px; padding:4px 2px; font-size:13px; }
+  .setrow textarea { width:100%; box-sizing:border-box; margin-top:6px; font:inherit; font-size:13px; padding:6px; border:1px solid #c5ccd5; border-radius:7px; }
+  .setrow .pres { font-size:12.5px; margin-left:6px; }
   .vrow { border:1px solid #e1e6ec; border-radius:10px; padding:8px 10px; margin:8px 0; font-size:13px; }
   .vrow .vt { display:flex; align-items:center; gap:8px; } .vrow .reg { background:#ffe058; color:#000; font-weight:800; border-radius:4px; padding:2px 6px; letter-spacing:1px; border:1px solid #000; }
   .vrow .vt .acts { margin-left:auto; display:flex; gap:4px; }
@@ -226,15 +235,11 @@
     .cchip img { width:56px; height:35px; }
     .cchip { font-size:11px; padding:4px 3px 3px; }
     .pop .id { display:none; }
-    .sign { padding:4px; margin:4px 0 3px; }
-    .srow + .srow { margin-top:3px; }
+    .srow { grid-template-columns:1fr 92px; }
+    .slabel { font-size:10.5px; padding:2px 6px; }
     .slabel .exv { font-size:9.5px; }
-    .slabel { font-size:11px; padding:0 7px; letter-spacing:.3px; }
-    .lcd { font-size:19px; min-width:86px; padding:5px 17px 5px 6px; }
-    .lcd .ghost { right:17px; top:5px; }
-    .lcd .unit { right:5px; bottom:5px; font-size:10px; }
-    .lcd.word { font-size:14px; padding-top:7px; padding-bottom:7px; }
-    .lcd.word .ghost { top:7px; }
+    .lcd { font-size:17px; }
+    .lcd.word { font-size:13px; }
     .tag { font-size:10px; padding:1px 5px; }
     .pop .links { font-size:12px; margin-top:4px; }
   }
@@ -595,7 +600,7 @@
         renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: s.cat === "grey" ? COLORS.grey : COLORS.amber
       });
       if (s.cat !== "grey") shown++;
-      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
+      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 240, minWidth: 220, autoPanPadding: [8, 60] } : { maxWidth: 280, minWidth: 260 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
@@ -647,6 +652,9 @@
     return "https://www.google.com/maps/dir/?api=1&destination=" + ll + "&travelmode=driving";
   }
   const NAV_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M21.7 11.3l-9-9a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4zM14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5z"/></svg>';
+  // popup panels remember whether you last had them open
+  const ppOpen = { cards: false, info: false };
+  document.addEventListener("toggle", e => { const d = e.target; if (d.classList && d.classList.contains("pp")) ppOpen[d.dataset.pp] = d.open; }, true);
   function popup(s, sel) {
     const name = s.n || s.b || "Fuel station";
     const brand = s.b && s.b.toLowerCase() !== (s.n || "").toLowerCase() ? s.b : "";
@@ -654,11 +662,11 @@
     let rows = fuels.map(f => {
       const v = s.p[f].toFixed(1), ghost = "8".repeat(v.length - 2) + ".8";
       return `<div class="srow"><div class="slabel ${FUEL_CLASS[f] || "f-b10"}">${esc(FUEL_NAMES[f] || f)}<span class="exv">${exVat(s.p[f])} ex VAT</span></div>` +
-             `<div class="lcd"><span class="ghost">${ghost}</span>${v}<span class="unit">p</span></div></div>`;
+             `<div class="lcd"><span class="dig"><span class="ghost">${ghost}</span>${v}</span><span class="unit">p</span></div></div>`;
     }).join("");
     if ((s.am || []).includes("adblue_pumps"))
       rows += `<div class="srow"><div class="slabel f-adblue">AdBlue<sup style="font-size:8px">®</sup></div>` +
-              `<div class="lcd word"><span class="ghost">~~~~</span>PUMP</div></div>`;
+              `<div class="lcd word"><span class="dig"><span class="ghost">~~~~</span>PUMP</span></div></div>`;
     const sign = rows ? `<div class="sign">${rows}</div>` : `<div class="sub" style="margin:6px 0">No prices reported</div>`;
     // fuel cards accepted here (ticked cards first)
     const isSel = c => sel.includes(c);
@@ -670,7 +678,11 @@
              `<span class="csur">${r.sur ? esc(r.sur) : r.noSur ? "No surcharge" : "✓"}</span></div>`;
     }).join("");
     cardHtml = sel.filter(c => !s.cards[c.id]).map(c => `<div class="crow no"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}</span><span class="csur">not accepted</span></div>`).join("") + cardHtml;
-    const cardsBox = cardHtml ? `<div class="cards"><div class="ch">Fuel cards${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge</span>' : ""}</div>${cardHtml}</div>` : "";
+    // summary for the closed panel: how the ticked cards fare here
+    const selSum = sel.length ? sel.map(c => { const r = s.cards[c.id]; return r ? `<span class="ps">${esc(c.name)} ✓${r.sur ? " " + esc(r.sur) : ""}</span>` : `<span class="ps no">${esc(c.name)} ✗</span>`; }).join(" ")
+      : `<span class="ps" style="color:#556">${accepted.length} accepted</span>`;
+    const cardsBox = cardHtml ? `<details class="pp" data-pp="cards"${ppOpen.cards ? " open" : ""}><summary>Fuel cards ${selSum}</summary>
+      <div class="cards"><div class="ch">Card${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge</span>' : ""}</div>${cardHtml}</div></details>` : "";
     const tags = [];
     if (s.tc) tags.push(`<span class="tag r">Temporarily closed</span>`);
     if (s.mw) tags.push(`<span class="tag">Motorway services</span>`);
@@ -688,10 +700,11 @@
       ${sign}${pumpCostLine(s)}
       ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
       ${cardsBox}
-      <div>${tags.join("")}</div>${hours}
+      <details class="pp" data-pp="info"${ppOpen.info ? " open" : ""}><summary>Facilities &amp; hours</summary><div class="pb">
+        <div>${tags.join("") || '<span class="sub">None listed</span>'}</div>${hours}
+        <div class="sub id" style="margin-top:4px;font-size:10px;word-break:break-all">ID ${esc(s.id)}</div></div></details>
       <div class="links"><a class="nav" href="${navUrl(s)}" target="_blank" rel="noopener" title="Directions from where you are" aria-label="Directions">${NAV_ICON}</a>
-      ${s.ph ? `<a class="tel" href="tel:${esc(s.ph.replace(/\s+/g, ""))}">${esc(s.ph)}</a>` : ""}</div>
-      <div class="sub id" style="margin-top:6px;font-size:10px;word-break:break-all">ID ${esc(s.id)}</div></div>`;
+      ${s.ph ? `<a class="tel" href="tel:${esc(s.ph.replace(/\s+/g, ""))}">${esc(s.ph)}</a>` : ""}</div></div>`;
   }
 
   // ---------- UK-only mask ----------
@@ -954,7 +967,7 @@
       Each price has an expiry date – when it passes, the price is removed so you always enter the latest one. Once any card has a price, only priced cards show in the filter. Untick <b>Show</b> to hide a card altogether.</p>` +
       list.map(c => {
         const pr = cp[c.id], soon = pr && pr.until <= addDays(t, 1);
-        return `<div class="srow" data-cid="${esc(c.id)}"><div class="top"><img src="${esc(cardImg(c))}" alt=""><div class="nm"><b>${esc(c.name)}</b>
+        return `<div class="setrow" data-cid="${esc(c.id)}"><div class="top"><img src="${esc(cardImg(c))}" alt=""><div class="nm"><b>${esc(c.name)}</b>
           <small class="${soon ? "exp" : ""}">${pr ? `Your price ${pr.p.toFixed(2)}p ex VAT · ${soon ? "expires" : "until"} ${niceDate(pr.until)}` : "No price"}</small></div>
           <label><input type="checkbox" data-show${hid.has(c.id) ? "" : " checked"}> Show</label></div>
           <div class="pin"><input type="number" step="0.01" min="0" inputmode="decimal" data-price placeholder="e.g. 128.50" value="${pr ? pr.p : ""}"> p/litre ex VAT · valid until
