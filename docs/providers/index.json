@@ -1,0 +1,22 @@
+{
+ "providers": [
+  {
+   "id": "uk-fuels",
+   "name": "UK Fuels",
+   "sur": {
+    "uk-fuels": {
+     "file": "uk-fuels/uk-fuels.csv?v=mwggnhfj",
+     "count": 1427,
+     "updated": "2026-11-14"
+    }
+   },
+   "logo": "uk-fuels.png?v=mwggnhfj"
+  },
+  {
+   "id": "watson-fuels",
+   "name": "Watson Fuels",
+   "sur": {},
+   "logo": "watson-fuels.png?v=mwggnhfj"
+  }
+ ]
+}
