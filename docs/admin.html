@@ -363,7 +363,7 @@
       `<label><input type="checkbox" class="lk" data-k="cards" value="${escH(c.id)}"${keep.has(c.id) ? " checked" : ""}> ${escH(c.name)}</label>`).join("") || '<span class="muted">No card lists published yet</span>';
     const kp = (document.querySelector('input[name="lkp"]:checked') || {}).value || "";
     $("lkProv").innerHTML = `<label><input type="radio" name="lkp" class="lk" value=""${kp ? "" : " checked"}> Their own choice</label>` +
-      provIndex.providers.map(p => `<label><input type="radio" name="lkp" class="lk" value="${escH(p.id)}"${kp === p.id ? " checked" : ""}> ${escH(p.name)}</label>`).join("");
+      provIndex.providers.concat([{ id: "other", name: "Other" }]).map(p => `<label><input type="radio" name="lkp" class="lk" value="${escH(p.id)}"${kp === p.id ? " checked" : ""}> ${escH(p.name)}</label>`).join("");
     makeLink();
   }
   function makeLink() {
@@ -555,7 +555,8 @@
           <div class="cbtns"><button class="secondary" data-pact="logo">${src ? "Change logo" : "Logo"}</button>${src ? '<button class="linkbtn" data-pact="rmlogo">Remove logo</button>' : ""}<button class="linkbtn" data-pact="drop" title="Remove this provider">✕</button></div></div>
         <div class="psur">${surRows || '<div class="muted">No surcharge lists yet</div>'}${removed}
           ${addable.length ? `<div><select data-psel>${addable.map(c => `<option value="${escH(c.id)}">${escH(c.name)}</option>`).join("")}</select> <button class="secondary" data-pact="addsur">Upload surcharges</button></div>` : ""}</div></div>`;
-    }).join("") || '<p class="muted" style="padding:8px">No providers yet – add one below.</p>';
+    }).join("") + `<div class="brow prow"><div class="ptop"><div class="plogo">Other</div>
+        <div class="name"><b>Other</b><span class="n">Built in – no surcharges. This is what the map uses until someone picks their provider.</span></div></div></div>`;
   }
   $("provList").addEventListener("click", e => {
     const u = e.target.closest("[data-punm]");
@@ -607,6 +608,7 @@
   $("addProv").onclick = () => {
     const name = $("newProv").value.trim(); if (!name) return;
     const id = FuelMap.brandSlug(name);
+    if (id === "other") { $("log").innerHTML = ""; log("“Other” is built in already.", "err"); return; }
     if (provDrop[id]) delete provDrop[id];
     else if (!provIndex.providers.some(p => p.id === id)) provIndex.providers.push({ id, name, sur: {}, _new: true });
     $("newProv").value = ""; provDirty = true; renderProv(); refreshKeyUI();
