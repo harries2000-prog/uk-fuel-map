@@ -41,6 +41,16 @@
   .brow .cimg { width:86px; height:54px; flex:none; border-radius:6px; object-fit:cover; box-shadow:0 1px 3px #0003; cursor:pointer; }
   .brow .warn { color:#9a4a00; font-size:12px; cursor:pointer; text-decoration:underline; }
   .brow .okm { color:#1e7a3c; font-size:12px; }
+  .prow { display:block !important; }
+  .prow .ptop { display:flex; align-items:center; gap:10px; }
+  .prow .plogo { width:96px; height:48px; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid #e3e7ec; border-radius:6px; font-size:11px; color:#99a; }
+  .prow .plogo img { max-width:92px; max-height:44px; }
+  .prow .psur { margin:8px 0 0 106px; font-size:13px; }
+  .prow .psur div { padding:3px 0; }
+  .prow .psur select { padding:4px; }
+  #provUnm { margin-top:10px; border:1px solid #f0c48a; background:#fff8ee; border-radius:8px; padding:10px; font-size:13px; }
+  #provUnm table { width:100%; border-collapse:collapse; margin-top:6px; }
+  #provUnm td, #provUnm th { text-align:left; padding:3px 6px; border-top:1px solid #f2dcc0; }
   #unmatchedBox { margin-top:10px; border:1px solid #f0c48a; background:#fff8ee; border-radius:8px; padding:10px; font-size:13px; }
   #unmatchedBox table { width:100%; border-collapse:collapse; margin-top:6px; }
   #unmatchedBox td, #unmatchedBox th { text-align:left; padding:3px 6px; border-top:1px solid #f2dcc0; vertical-align:top; }
@@ -66,7 +76,7 @@
   <h1>UK Fuel Map – Admin</h1>
   <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
 
-  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button><button id="tabBtnLinks">Share links</button></div>
+  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnProv">Card providers</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button><button id="tabBtnLinks">Share links</button></div>
 
   <div id="tabData">
   <section>
@@ -88,9 +98,7 @@
     <h2>Fuel cards</h2>
     <p>Upload each card's site list as a CSV. It needs a heading row with a <b>Postcode</b> column;
        <b>Site name</b>, <b>Surcharge</b> and <b>HGV</b> (Yes/No) columns are optional. Uploading a new list replaces that card's old one.</p>
-    <p class="muted"><b>Surcharges</b> are a separate list per card (your spreadsheet as-is: .ods, .xlsx or .csv) with a Postcode column and a
-       surcharge column – <i>Surcharge PPL</i> in pence, or <i>Surcharge</i> (0.0125 = 1.25p); Site name and Group are optional.
-       It sits on top of the card's site list, so <b>Remove surcharges</b> puts everything back as it was. Sites on it also count as taking the card.</p>
+    <p class="muted"><b>Surcharges</b> depend on who supplies the card, so they live in the <b>Card providers</b> tab.</p>
     <p class="muted">Card images: tap the picture or <b>Image</b>. Best size <b>344 × 216 px</b> (bank-card shape) – other shapes are cropped to fit.
        Cards without an image show a sample card.</p>
     <div class="brands" id="cardList"></div>
@@ -99,6 +107,22 @@
     <input type="file" id="cardFile" accept=".csv,text/csv" hidden>
     <input type="file" id="cardImgFile" accept="image/*" hidden>
     <input type="file" id="surFile" accept=".csv,.ods,.xlsx,.xls,text/csv" hidden>
+  </section>
+  </div>
+
+  <div id="tabProv" hidden>
+  <section>
+    <h2>Card providers</h2>
+    <p>Surcharges depend on the company that supplies the card. Add each provider with its logo, then upload its surcharge list for each card.
+       On the map, people pick their provider in the menu and see that provider's surcharges.</p>
+    <p class="muted">Surcharge list: your spreadsheet as-is (.ods, .xlsx or .csv) with a <b>Postcode</b> column and a surcharge column –
+       <i>Surcharge PPL</i> in pence, or <i>Surcharge</i> (0.0125 = 1.25p); Site name and Group are optional.
+       A site that takes the card but isn't on the list has no surcharge. Logo: any size, fitted into 240 × 120.</p>
+    <div class="brands" id="provList"></div>
+    <div id="provUnm" hidden></div>
+    <div class="row"><input type="text" id="newProv" placeholder="Add a provider…" style="flex:1"><button class="secondary" id="addProv">Add</button></div>
+    <input type="file" id="provLogoFile" accept="image/*" hidden>
+    <input type="file" id="provSurFile" accept=".csv,.ods,.xlsx,.xls,text/csv" hidden>
   </section>
   </div>
 
@@ -129,6 +153,8 @@
         <label><input type="radio" name="lkc" class="lk" value="price" checked> Pump price</label>
         <label><input type="radio" name="lkc" class="lk" value="sur"> Surcharge</label></div>
       <p class="muted">Pump price needs exactly one fuel (Diesel or Unleaded); Surcharge needs exactly one card.</p></div>
+    <div class="field"><label>Card provider</label><div class="row" id="lkProv" style="margin-top:0;gap:14px;flex-wrap:wrap"></div>
+      <p class="muted">Decides whose surcharges they see.</p></div>
     <div class="field"><label>Options</label>
       <label><input type="checkbox" class="lk" id="lkNoHgv"> Hide sites marked "no HGVs"</label><br>
       <label><input type="checkbox" class="lk" id="lkOthers"> Also show stations that don't take the ticked cards</label></div>
@@ -190,6 +216,8 @@
   const DEFAULT_CARDS = ["UK Fuels", "Keyfuels", "FastFuels", "Esso National", "Shell CRT", "Shell Multifleet", "FuelGenie"];
   let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, imgChanges = {}, surChanges = {}, cardsDirty = false, cardTarget = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
+  // card providers: who supplies the card decides the surcharges. providers/index.json = { providers:[{id,name,logo,sur:{cardId:{file,count,updated}}}] }
+  let provIndex = { providers: [] }, provLogo = {}, provSur = {}, provDrop = {}, provDirty = false, provTarget = null, provMatch = {};
   const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "", showName: true };
   let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
 
@@ -198,7 +226,7 @@
   function refreshKeyUI() {
     const k = getKey();
     $("keyBox").hidden = !!k; $("forget").hidden = !k;
-    $("publish").disabled = !(ffFile || cardsDirty || Object.keys(logoChanges).length || brandDirty);
+    $("publish").disabled = !(ffFile || cardsDirty || provDirty || Object.keys(logoChanges).length || brandDirty);
   }
 
   function pick(input, label, nameEl, setter) {
@@ -292,6 +320,26 @@
         what.push("fuel cards");
         cardIndex = idx;
       }
+      if (provDirty) {
+        const idx = { providers: provIndex.providers.filter(p => !provDrop[p.id]).map(p => { const q = Object.assign({}, p, { sur: Object.assign({}, p.sur || {}) }); delete q._new; return q; }) };
+        for (const p of provIndex.providers) if (provDrop[p.id]) {
+          if (p.logo) files.push({ path: "docs/providers/" + p.logo.split("?")[0], remove: true });
+          for (const k of Object.keys(p.sur || {})) files.push({ path: "docs/providers/" + p.sur[k].file.split("?")[0], remove: true });
+        }
+        const ver = "?v=" + Date.now().toString(36), today = new Date().toISOString().slice(0, 10);
+        for (const p of idx.providers) {
+          const lg = provLogo[p.id];
+          if (lg === "remove") { if (p.logo) files.push({ path: "docs/providers/" + p.logo.split("?")[0], remove: true }); delete p.logo; }
+          else if (lg) { files.push({ path: "docs/providers/" + p.id + ".png", b64: lg.split(",")[1] }); p.logo = p.id + ".png" + ver; }
+          for (const [cid, ch] of Object.entries(provSur[p.id] || {})) {
+            if (ch.remove) { if (p.sur[cid]) files.push({ path: "docs/providers/" + p.sur[cid].file.split("?")[0], remove: true }); delete p.sur[cid]; }
+            else { const f = p.id + "/" + cid + ".csv"; files.push({ path: "docs/providers/" + f, content: ch.text }); p.sur[cid] = { file: f + ver, count: ch.count, updated: today }; }
+          }
+        }
+        files.push({ path: "docs/providers/index.json", content: JSON.stringify(idx, null, 1) });
+        what.push("card providers");
+        provIndex = idx;
+      }
       const lc = Object.keys(logoChanges);
       if (lc.length) {
         const idx = Object.assign({}, logoIndex);
@@ -316,6 +364,7 @@
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
       cardChanges = {}; imgChanges = {}; surChanges = {}; cardsDirty = false; renderCards();
+      provLogo = {}; provSur = {}; provDrop = {}; provDirty = false; renderProv();
       brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
@@ -335,18 +384,20 @@
   function showTab(which) {
     $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos"; $("tabBrand").hidden = which !== "brand";
     $("tabCards").hidden = which !== "cards"; $("tabBtnCards").classList.toggle("on", which === "cards");
+    $("tabProv").hidden = which !== "prov"; $("tabBtnProv").classList.toggle("on", which === "prov");
     $("tabLinks").hidden = which !== "links"; $("tabBtnLinks").classList.toggle("on", which === "links");
     $("publish").closest("section").hidden = which === "links";
     if (which === "links") buildLinkUI();
     $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
     $("tabBtnBrand").classList.toggle("on", which === "brand");
-    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card changes", logos: "Publish logo changes", brand: "Publish branding" }[which];
+    $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card changes", prov: "Publish provider changes", logos: "Publish logo changes", brand: "Publish branding" }[which];
     if (which === "logos" && !brands.length) loadBrands();
   }
   $("tabBtnData").onclick = () => showTab("data");
   $("tabBtnLogos").onclick = () => showTab("logos");
   $("tabBtnBrand").onclick = () => showTab("brand");
   $("tabBtnCards").onclick = () => showTab("cards");
+  $("tabBtnProv").onclick = () => { showTab("prov"); renderProv(); refreshProvMatches(); };
   $("tabBtnLinks").onclick = () => showTab("links");
 
   // ---- Share links ----
@@ -354,6 +405,9 @@
     const keep = new Set([...document.querySelectorAll('#lkCards input:checked')].map(i => i.value));
     $("lkCards").innerHTML = cardIndex.cards.filter(c => c.file || c.sur).map(c =>
       `<label><input type="checkbox" class="lk" data-k="cards" value="${escH(c.id)}"${keep.has(c.id) ? " checked" : ""}> ${escH(c.name)}</label>`).join("") || '<span class="muted">No card lists published yet</span>';
+    const kp = (document.querySelector('input[name="lkp"]:checked') || {}).value || "";
+    $("lkProv").innerHTML = `<label><input type="radio" name="lkp" class="lk" value=""${kp ? "" : " checked"}> Their own choice</label>` +
+      provIndex.providers.map(p => `<label><input type="radio" name="lkp" class="lk" value="${escH(p.id)}"${kp === p.id ? " checked" : ""}> ${escH(p.name)}</label>`).join("");
     makeLink();
   }
   function makeLink() {
@@ -363,6 +417,7 @@
     if (fuel.length) q.set("fuel", fuel.join(","));
     if (cardsSel.length) q.set("cards", cardsSel.join(","));
     q.set("colour", colour);
+    const prov = (document.querySelector('input[name="lkp"]:checked') || {}).value; if (prov) q.set("provider", prov);
     if ($("lkNoHgv").checked) q.set("nohgv", "1");
     if ($("lkOthers").checked) q.set("others", "1");
     const url = location.origin + location.pathname.replace(/admin\.html$/, "") + "?" + q.toString().replace(/%2C/g, ",");
@@ -428,7 +483,6 @@
         <div class="name"><b>${escH(c.name)}</b><br><span class="n" style="margin:0">${escH(info)}${im ? " · image " + (im === "remove" ? "removed" : "changed") : realImg ? "" : " · sample image"}</span><br><span class="n" style="margin:0">${escH(surInfo)}</span>${matchLine(c.id)}</div>
         <div class="cbtns"><button class="secondary" data-act="up">${has ? "Replace list" : "Upload list"}</button>
         <button class="secondary" data-act="img">Image</button>
-        <button class="secondary" data-act="sur">${hasSur ? "Replace surcharges" : "Surcharges"}</button>
         ${hasSur ? '<button class="linkbtn" data-act="rmsur">Remove surcharges</button>' : ''}
         ${has ? '<button class="linkbtn" data-act="rm">Remove list</button>' : ''}${realImg ? '<button class="linkbtn" data-act="rmimg">Remove image</button>' : ''}<button class="linkbtn" data-act="drop" title="Remove this card completely">✕</button></div></div>`;
     }).join("");
@@ -502,6 +556,107 @@
   };
   fetch("cards/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
     .then(j => { if (j && j.cards) cardIndex = j; renderCards(); refreshMatches(); }).catch(renderCards);
+
+  // ---- Card providers ----
+  const provCardName = id => (cardIndex.cards.find(c => c.id === id) || { name: id }).name;
+  const provSurText = async (p, cid) => {
+    const ch = (provSur[p.id] || {})[cid];
+    if (ch) return ch.remove ? "" : ch.text;
+    const cur = (p.sur || {})[cid];
+    return cur ? fetch("providers/" + cur.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" }).then(r => r.text()).catch(() => "") : "";
+  };
+  function provCards(p) {   // cards this provider has surcharges for (published or pending)
+    const ids = new Set(Object.keys(p.sur || {}));
+    for (const [cid, ch] of Object.entries(provSur[p.id] || {})) ch.remove ? ids.delete(cid) : ids.add(cid);
+    return [...ids];
+  }
+  async function refreshProvMatches() {
+    await ffLoad; if (!ffStations.length) return;
+    for (const p of provIndex.providers) for (const cid of provCards(p)) {
+      const rows = FuelMap.readSurchargeList(await provSurText(p, cid)).rows;
+      provMatch[p.id + "|" + cid] = Object.assign(FuelMap.matchReport(ffStations, [], rows), { total: rows.length });
+    }
+    renderProv();
+  }
+  function renderProv() {
+    const list = provIndex.providers.filter(p => !provDrop[p.id]);
+    const cardsWithList = cardIndex.cards.filter(c => c.file);
+    $("provList").innerHTML = list.map(p => {
+      const lg = provLogo[p.id], src = lg && lg !== "remove" ? lg : (!lg && p.logo ? "providers/" + p.logo : "");
+      const pend = provSur[p.id] || {}, ids = provCards(p);
+      const surRows = ids.map(cid => {
+        const ch = pend[cid], cur = (p.sur || {})[cid], m = provMatch[p.id + "|" + cid];
+        const info = ch ? ch.count + " surcharges (new – not published yet)" : (cur.count || "?") + " surcharges · " + (cur.updated || "");
+        const ml = m ? (m.surUnmatched.length ? ` · <a href="#" data-punm="${escH(p.id)}|${escH(cid)}">${m.surUnmatched.length} of ${m.total} not matched</a>` : ` · <span class="ok">✓ all matched</span>`) : "";
+        return `<div><b>${escH(provCardName(cid))}</b>: ${escH(info)}${ml}
+          <button class="linkbtn" data-pact="sur" data-cid="${escH(cid)}">Replace</button> <button class="linkbtn" data-pact="rmsur" data-cid="${escH(cid)}">Remove</button></div>`;
+      }).join("");
+      const addable = cardsWithList.filter(c => !ids.includes(c.id));
+      const removed = Object.entries(pend).filter(([cid, ch]) => ch.remove).map(([cid]) => `<div class="muted">${escH(provCardName(cid))} surcharges will be removed</div>`).join("");
+      return `<div class="brow prow${provLogo[p.id] || Object.keys(pend).length || p._new ? " changed" : ""}" data-pid="${escH(p.id)}">
+        <div class="ptop"><div class="plogo">${src ? `<img src="${escH(src)}" alt="">` : "no logo"}</div>
+          <div class="name"><b>${escH(p.name)}</b>${p._new ? '<span class="n">new – not published yet</span>' : ""}</div>
+          <div class="cbtns"><button class="secondary" data-pact="logo">${src ? "Change logo" : "Logo"}</button>${src ? '<button class="linkbtn" data-pact="rmlogo">Remove logo</button>' : ""}<button class="linkbtn" data-pact="drop" title="Remove this provider">✕</button></div></div>
+        <div class="psur">${surRows || '<div class="muted">No surcharge lists yet</div>'}${removed}
+          ${addable.length ? `<div><select data-psel>${addable.map(c => `<option value="${escH(c.id)}">${escH(c.name)}</option>`).join("")}</select> <button class="secondary" data-pact="addsur">Upload surcharges</button></div>` : ""}</div></div>`;
+    }).join("") || '<p class="muted" style="padding:8px">No providers yet – add one below.</p>';
+  }
+  $("provList").addEventListener("click", e => {
+    const u = e.target.closest("[data-punm]");
+    if (u) {
+      e.preventDefault();
+      const [pid, cid] = u.dataset.punm.split("|"), m = provMatch[pid + "|" + cid], p = provIndex.providers.find(x => x.id === pid);
+      $("provUnm").innerHTML = `<b>${escH(p.name)} – ${escH(provCardName(cid))}: ${m.surUnmatched.length} surcharge rows not on the map</b>
+        <div class="muted">These didn't match a Fuel Finder station (by postcode, or name in the same postcode area). Fix the postcode in your file, or ask Claude to match them.</div>
+        <table><tr><th>Site</th><th>Postcode</th><th>Surcharge</th></tr>${m.surUnmatched.map(r => `<tr><td>${escH(r.name || "(no name)")}</td><td>${escH(r.pcRaw)}</td><td>${escH(r.ppl)}p ${escH(r.group || "")}</td></tr>`).join("")}</table>
+        <button class="secondary" id="provUnmClose" style="margin-top:8px">Close</button>`;
+      $("provUnm").hidden = false; $("provUnmClose").onclick = () => $("provUnm").hidden = true;
+      return;
+    }
+    const b = e.target.closest("[data-pact]"); if (!b) return;
+    const row = b.closest("[data-pid]"), pid = row.dataset.pid, p = provIndex.providers.find(x => x.id === pid), act = b.dataset.pact;
+    if (act === "logo") { provTarget = { pid }; $("provLogoFile").value = ""; $("provLogoFile").click(); return; }
+    if (act === "sur" || act === "addsur") { provTarget = { pid, cid: act === "sur" ? b.dataset.cid : row.querySelector("[data-psel]").value }; $("provSurFile").value = ""; $("provSurFile").click(); return; }
+    if (act === "rmlogo") { if (p.logo) provLogo[pid] = "remove"; else delete provLogo[pid]; }
+    if (act === "rmsur") { const cid = b.dataset.cid; provSur[pid] = provSur[pid] || {}; if ((p.sur || {})[cid]) provSur[pid][cid] = { remove: true }; else delete provSur[pid][cid]; }
+    if (act === "drop") { if (p._new) provIndex.providers = provIndex.providers.filter(x => x.id !== pid); else provDrop[pid] = true; $("log").innerHTML = ""; log(p.name + " will be removed when you press Publish."); }
+    provDirty = true; renderProv(); refreshKeyUI();
+  });
+  $("provLogoFile").addEventListener("change", async () => {
+    const f = $("provLogoFile").files[0]; if (!f || !provTarget) return;
+    try {
+      const url = URL.createObjectURL(f);
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const W = 240, H = 120, w = img.naturalWidth || W, h = img.naturalHeight || H, sc = Math.min(W / w, H / h), dw = Math.round(w * sc), dh = Math.round(h * sc);
+      const c = document.createElement("canvas"); c.width = W; c.height = H;
+      const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(img, Math.round((W - dw) / 2), Math.round((H - dh) / 2), dw, dh);
+      URL.revokeObjectURL(url);
+      provLogo[provTarget.pid] = c.toDataURL("image/png"); provDirty = true; renderProv(); refreshKeyUI();
+      $("log").innerHTML = ""; log("Logo ready – press Publish.");
+    } catch (e) { $("log").innerHTML = ""; log("✗ Couldn't read that image file.", "err"); }
+  });
+  $("provSurFile").addEventListener("change", async () => {
+    const f = $("provSurFile").files[0]; if (!f || !provTarget || !provTarget.cid) return;
+    $("log").innerHTML = "";
+    try {
+      const text = (await sheetToCsv(f)).replace(/\u00a0/g, " ");
+      const list = FuelMap.readSurchargeList(text);
+      if (!list.ok || !list.rows.length) { log("✗ " + f.name + " needs a heading row with a Postcode column and a Surcharge (or Surcharge PPL) column.", "err"); return; }
+      const { pid, cid } = provTarget;
+      provSur[pid] = provSur[pid] || {}; provSur[pid][cid] = { text, count: list.rows.length };
+      provDirty = true; renderProv(); refreshKeyUI(); refreshProvMatches();
+      log("Ready: " + list.rows.length + " " + provCardName(cid) + " surcharges for " + provIndex.providers.find(x => x.id === pid).name + " – press Publish.");
+    } catch (e) { log("✗ Couldn't read " + f.name + ": " + e.message, "err"); }
+  });
+  $("addProv").onclick = () => {
+    const name = $("newProv").value.trim(); if (!name) return;
+    const id = FuelMap.brandSlug(name);
+    if (provDrop[id]) delete provDrop[id];
+    else if (!provIndex.providers.some(p => p.id === id)) provIndex.providers.push({ id, name, sur: {}, _new: true });
+    $("newProv").value = ""; provDirty = true; renderProv(); refreshKeyUI();
+  };
+  fetch("providers/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && j.providers) provIndex = j; renderProv(); }).catch(renderProv);
 
   // ---- Branding ----
   const SWATCHES = ["#0b2545", "#13315c", "#1d3557", "#0f4c3a", "#1b5e20", "#7a1f1f", "#b71c1c", "#e65100", "#f2b705", "#222831", "#4a4e69", "#005f73"];
