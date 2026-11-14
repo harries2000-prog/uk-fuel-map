@@ -142,12 +142,20 @@
     const iId = findCol(head, [/node.?id/, /fuel.?finder.?id/]);
     const iName = findCol(head, [/site.?name/, /^name$/, /station/, /site/, /name/]);
     const iSur = findCol(head, [/surcharge/, /pence|ppl|p\/l/, /price/, /charge/]);
-    const iHgv = findCol(head, [/hgv/, /lorry|truck|lgv/]);
+    const iHgv = findCol(head, [/^hgv$/, /hgv/, /lorry|truck|lgv/]);
+    // optional extras (lists built by Claude / the updater): where the site came from, and sites that aren't in Fuel Finder
+    const ex = re => head.findIndex(h => re.test(String(h).trim().toLowerCase()));
+    const iSrc = ex(/^src$/), iSName = ex(/^source name$/), iSPc = ex(/^source postcode$/), iAddr = ex(/^address$/), iTown = ex(/^town$/),
+          iLat = ex(/^lat(itude)?$/), iLng = ex(/^(lng|lon|long|longitude)$/), iHours = ex(/^hours$/), iExtra = ex(/^not in fuel finder$/),
+          iBrand = ex(/^brand$/), iHow = ex(/^matched_by$/), iDist = ex(/^match_m$/);
     const out = [];
     for (const r of rows.slice(1)) {
       const g = i => (i >= 0 && i < r.length ? r[i].trim() : "");
       const rec = { pc: normPc(g(iPc)), id: g(iId), name: g(iName), sur: g(iSur), hgv: iHgv >= 0 ? yesNo(g(iHgv)) : null, raw: r };
-      if (rec.pc || rec.id) out.push(rec);
+      if (iSrc >= 0) Object.assign(rec, { src: g(iSrc), srcName: g(iSName), srcPc: g(iSPc), addr: g(iAddr), town: g(iTown), hours: g(iHours),
+        brand: g(iBrand), how: g(iHow), dist: g(iDist), lat: parseFloat(g(iLat)), lng: parseFloat(g(iLng)), extra: yesNo(g(iExtra)) === true });
+      if (rec.extra) { rec.id = ""; rec.pc = ""; if (isFinite(rec.lat) && isFinite(rec.lng)) out.push(rec); }   // not in Fuel Finder: placed by its own position
+      else if (rec.pc || rec.id) out.push(rec);
     }
     return { rows: out, hasPostcode: iPc >= 0 || iId >= 0 };
   }
@@ -212,7 +220,8 @@
   }
   function matchReport(stations, siteRows, surRows) {
     const idx = stationIndex(stations), rep = { siteUnmatched: [], surUnmatched: [], siteMatched: 0, surMatched: 0 };
-    for (const r of siteRows || []) { if (findStation(idx, r, r.pc, false)) rep.siteMatched++; else rep.siteUnmatched.push(r); }
+    rep.siteExtra = [];
+    for (const r of siteRows || []) { if (r.extra) rep.siteExtra.push(r); else if (findStation(idx, r, r.pc, false)) rep.siteMatched++; else rep.siteUnmatched.push(r); }
     for (const r of surRows || []) { if (findStation(idx, r, r.pcRaw, true)) rep.surMatched++; else rep.surUnmatched.push(r); }
     return rep;
   }
