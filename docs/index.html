@@ -297,6 +297,7 @@
     <span id="k-amber"><i class="dot" style="background:var(--amber)"></i><em id="kl-amber">Fuel station</em> <b id="c-amber"></b></span>
     <span id="k-red"><i class="dot" style="background:var(--red)"></i><em id="kl-red">No HGVs</em> <b id="c-red"></b></span>
   </div>
+  <div class="evk" id="xKey" hidden><i class="dot" style="background:#6d4fd8"></i><em>Truck stop / depot – card site, not in Fuel Finder (no pump prices)</em> <b id="c-x"></b></div>
   <div class="evk" id="evKey" hidden><i class="dot" style="background:#0f8f8a"></i><em>EV charge point</em> <b id="c-ev"></b></div>
   <label class="small"><input type="checkbox" id="showClosed"> Show temporarily closed (<span id="c-grey"></span>)</label>
   <div id="listinfo"></div>
@@ -313,7 +314,7 @@
 <script>
 (function () {
   "use strict";
-  const COLORS = { green:"#1e9e4a", amber:"#f0a020", red:"#d63a2f", grey:"#8a8f98" };
+  const COLORS = { green:"#1e9e4a", amber:"#f0a020", red:"#d63a2f", grey:"#8a8f98", extra:"#6d4fd8" };   // extra = card site not in Fuel Finder
   const UK_BOUNDS = L.latLngBounds([49.6, -9.2], [61.1, 2.4]);
   const FUEL_NAMES = {
     B7_STANDARD:"Diesel", B7S:"Diesel", B7:"Diesel", B7_PREMIUM:"Premium diesel", B7P:"Premium diesel",
@@ -379,11 +380,13 @@
 
   // ---------- fuel card lists (parsing lives in convert.js) ----------
   function matchCards() {
+    stations = stations.filter(s => !s.extra);   // Fuel Finder stations only; card-only sites are rebuilt below
     for (const s of stations) s.cards = {};
     for (const card of cards) {
       const byPc = new Map(), byId = new Map();
       card.rows.forEach(r => {
         r.matched = 0;
+        if (r.extra) return;
         if (r.id) byId.set(r.id, r);
         if (r.pc) { if (!byPc.has(r.pc)) byPc.set(r.pc, []); byPc.get(r.pc).push(r); }
       });
@@ -396,9 +399,24 @@
         }
         if (hit) { hit.matched++; s.cards[card.id] = hit; }
       }
-      card.unmatched = card.rows.filter(r => !r.matched);
+      card.unmatched = card.rows.filter(r => !r.matched && !r.extra);
       applySurcharges(card, byPcStations());
     }
+    // sites a card takes that aren't in Fuel Finder (truck stops, depots): shown only while one of their cards is ticked
+    const extras = [], xGrid = new Map(), xKey = (y, x) => Math.round(y * 400) + "," + Math.round(x * 250);
+    for (const card of cards) for (const r of card.rows) {
+      if (!r.extra) continue;
+      let s = null;
+      const ky = Math.round(r.lat * 400), kx = Math.round(r.lng * 250);
+      for (let a = -1; a <= 1 && !s; a++) for (let b = -1; b <= 1 && !s; b++) s = (xGrid.get((ky + a) + "," + (kx + b)) || []).find(e => Math.abs(e.y - r.lat) < 0.0005 && Math.abs(e.x - r.lng) < 0.0008) || null;
+      if (!s) {
+        s = { id: "x:" + (r.src || r.lat + "," + r.lng), extra: 1, n: r.srcName || r.name, b: r.brand || "", a: r.addr || "", c: r.town || "", pc: r.srcPc || "",
+              y: r.lat, x: r.lng, p: {}, ho: r.hours || "", cards: {} };
+        extras.push(s); const k = xKey(r.lat, r.lng); if (!xGrid.has(k)) xGrid.set(k, []); xGrid.get(k).push(s);
+      }
+      s.cards[card.id] = r;
+    }
+    stations = stations.concat(extras);
     renderCardChips();
   }
   function renderCardChips() {
@@ -532,7 +550,7 @@
     const n = sorted.length, tOf = v => n > 1 && hi > lo ? rank.get(v) / (n - 1) : (sur ? 0 : 0);
     for (const m of markers) {
       if (m._v === undefined) continue;
-      const c = m._v == null ? COLORS.grey
+      const c = m.s.extra ? COLORS.extra : m._v == null ? COLORS.grey
               : sur ? (m._v <= 0 ? COLORS.green : `hsl(${Math.round(40 * (1 - tOf(m._v)))} 85% 46%)`)
               : gradCol(tOf(m._v));
       if (m.options.fillColor !== c) m.setStyle({ fillColor: c });
@@ -590,24 +608,26 @@
       (sel.length === 1 ? ` – ${curProvider() ? esc(curProvider().name) + " has" : "there's"} no ${esc(sel[0].name)} surcharge list.` : sel.length > 1 ? ", or one fuel card to colour by surcharge." : ".");
     $("cbyNote").innerHTML = note; $("grad").hidden = true;
     $("key").style.display = gradInfo ? "none" : "";
-    let shown = 0;
+    let shown = 0, nExtra = 0;
     for (const s of list) {
       counts[s.cat]++;
       if (s.cat === "grey" && !showClosed) continue;
       // fuel: any ticked type; cards: any ticked card
-      if (anyFuel && !((want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) ||
+      if (s.extra) { if (!sel.some(c => s.cards[c.id]) || (anyFuel && !want.diesel)) continue; nExtra++; }
+      else if (anyFuel && !((want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) ||
                        (want.adblue && (s.am || []).includes("adblue_pumps")))) continue;
       if (onlyCard && !sel.some(c => s.cards[c.id])) continue;
       if (gradInfo && gradInfo.mode === "sur" && !s.cards[gradInfo.card.id]) continue;
       if (hideNoHgv && s.cat === "amber") continue;
       const m = new PumpMarker([s.y, s.x], {
-        renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: s.cat === "grey" ? COLORS.grey : COLORS.amber
+        renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: s.extra ? COLORS.extra : s.cat === "grey" ? COLORS.grey : COLORS.amber
       });
       if (s.cat !== "grey") shown++;
       m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 240, minWidth: 220, autoPanPadding: [8, 60] } : { maxWidth: 280, minWidth: 260 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
+    $("xKey").hidden = !nExtra; $("c-x").textContent = nExtra.toLocaleString();
     updateKey(sel);
     // no price/surcharge colours possible: every open station is amber
     $("k-green").hidden = true; $("k-red").hidden = true; $("kl-amber").textContent = "Fuel station"; $("c-amber").textContent = shown.toLocaleString();
@@ -671,7 +691,8 @@
     if ((s.am || []).includes("adblue_pumps"))
       rows += `<div class="srow"><div class="slabel f-adblue">AdBlue<sup style="font-size:8px">®</sup></div>` +
               `<div class="lcd word"><span class="dig"><span class="ghost">~~~~</span>PUMP</span></div></div>`;
-    const sign = rows ? `<div class="sign">${rows}</div>` : `<div class="sub" style="margin:6px 0">No prices reported</div>`;
+    const sign = s.extra ? `<div class="sub" style="margin:6px 0;background:#f1edff;border-radius:6px;padding:5px 7px;color:#3d2a8c">Truck stop / depot that takes the card(s) below. It isn't in the government Fuel Finder list, so there are no pump prices.</div>`
+      : rows ? `<div class="sign">${rows}</div>` : `<div class="sub" style="margin:6px 0">No prices reported</div>`;
     // fuel cards accepted here (ticked cards first)
     const isSel = c => sel.includes(c);
     const accepted = cards.filter(c => s.cards[c.id]).sort((a, b) => isSel(b) - isSel(a));
@@ -692,7 +713,7 @@
     if (s.mw) tags.push(`<span class="tag">Motorway services</span>`);
     if (s.sm) tags.push(`<span class="tag">Supermarket</span>`);
     (s.am || []).filter(a => a !== "adblue_pumps").forEach(a => tags.push(`<span class="tag">${esc(AMENITY_NAMES[a] || a.replace(/_/g, " "))}</span>`));
-    let hours = "";
+    let hours = s.ho ? `<div class="sub" style="margin-top:6px">Opening: <b>${esc(s.ho)}</b></div>` : "";
     if (s.h) {
       const d = (new Date().getDay() + 6) % 7;
       hours = `<div class="sub" style="margin-top:6px">Today (${DAYS[d]}): <b>${esc(s.h[d] || "not given")}</b></div>`;
@@ -733,10 +754,10 @@
     const q = e.target.value.trim(); if (!q) return;
     const nq = normPc(q);
     // 1) station postcode / name / town in our own data
-    let hits = stations.filter(s => normPc(s.pc).startsWith(nq) && nq.length >= 3);
+    let hits = stations.filter(s => !s.extra && normPc(s.pc).startsWith(nq) && nq.length >= 3);
     if (!hits.length) {
       const lq = q.toLowerCase();
-      hits = stations.filter(s => (s.n + " " + s.b + " " + s.c + " " + s.a).toLowerCase().includes(lq));
+      hits = stations.filter(s => !s.extra && (s.n + " " + s.b + " " + s.c + " " + s.a).toLowerCase().includes(lq));
     }
     if (hits.length) {
       const b = L.latLngBounds(hits.map(s => [s.y, s.x]));
@@ -1076,7 +1097,7 @@
     matchCards(); renderProviders(); renderVehSel(); draw();
     locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
-    $("meta").innerHTML = `${stations.length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
+    $("meta").innerHTML = `${(meta.stations || []).length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
   })();
 })();
 </script>
