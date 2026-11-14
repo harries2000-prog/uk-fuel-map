@@ -61,7 +61,7 @@
   <h1>UK Fuel Map – Admin</h1>
   <p class="sub"><a href="./">← Back to the map</a> · <span id="current">Checking current data…</span></p>
 
-  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button></div>
+  <div class="tabs"><button id="tabBtnData" class="on">Prices</button><button id="tabBtnCards">Fuel cards</button><button id="tabBtnLogos">Brand logos</button><button id="tabBtnBrand">Branding</button><button id="tabBtnLinks">Share links</button></div>
 
   <div id="tabData">
   <section>
@@ -104,6 +104,32 @@
     <input type="text" id="brandSearch" placeholder="Search brands…">
     <div class="brands" id="brandList"><p class="muted" style="padding:8px">Loading brands…</p></div>
     <input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp">
+  </section>
+  </div>
+
+  <div id="tabLinks" hidden>
+  <section>
+    <h2>Share links</h2>
+    <p>Make a link that opens the map with the right options already picked, then send it to the right person.
+       They can still change things in the menu. Nothing needs publishing – the link works straight away.</p>
+    <div class="field"><label>Fuel</label>
+      <div class="row" style="margin-top:0;gap:14px">
+        <label><input type="checkbox" class="lk" data-k="fuel" value="diesel"> Diesel</label>
+        <label><input type="checkbox" class="lk" data-k="fuel" value="unleaded"> Unleaded</label>
+        <label><input type="checkbox" class="lk" data-k="fuel" value="adblue"> AdBlue</label></div></div>
+    <div class="field"><label>Fuel cards</label><div class="row" id="lkCards" style="margin-top:0;gap:14px;flex-wrap:wrap"></div></div>
+    <div class="field"><label>Colour pumps by</label>
+      <div class="row" style="margin-top:0;gap:14px">
+        <label><input type="radio" name="lkc" class="lk" value="card" checked> Fuel card</label>
+        <label><input type="radio" name="lkc" class="lk" value="price"> Pump price</label>
+        <label><input type="radio" name="lkc" class="lk" value="sur"> Surcharge</label></div>
+      <p class="muted">Pump price needs exactly one fuel (Diesel or Unleaded); Surcharge needs exactly one card.</p></div>
+    <div class="field"><label>Options</label>
+      <label><input type="checkbox" class="lk" id="lkNoHgv"> Hide sites marked "no HGVs"</label><br>
+      <label><input type="checkbox" class="lk" id="lkOthers"> Also show stations that don't take the ticked cards</label></div>
+    <div class="field"><label for="lkUrl">Link</label>
+      <div class="row" style="margin-top:0"><input type="text" id="lkUrl" readonly style="flex:1"><button class="secondary" id="lkCopy">Copy</button><a id="lkOpen" target="_blank" rel="noopener" class="secondary" style="padding:8px 12px">Open</a></div>
+      <p class="muted" id="lkNote"></p></div>
   </section>
   </div>
 
@@ -304,6 +330,9 @@
   function showTab(which) {
     $("tabData").hidden = which !== "data"; $("tabLogos").hidden = which !== "logos"; $("tabBrand").hidden = which !== "brand";
     $("tabCards").hidden = which !== "cards"; $("tabBtnCards").classList.toggle("on", which === "cards");
+    $("tabLinks").hidden = which !== "links"; $("tabBtnLinks").classList.toggle("on", which === "links");
+    $("publish").closest("section").hidden = which === "links";
+    if (which === "links") buildLinkUI();
     $("tabBtnData").classList.toggle("on", which === "data"); $("tabBtnLogos").classList.toggle("on", which === "logos");
     $("tabBtnBrand").classList.toggle("on", which === "brand");
     $("pubTitle").textContent = { data: "3. Publish", cards: "Publish fuel card changes", logos: "Publish logo changes", brand: "Publish branding" }[which];
@@ -313,6 +342,31 @@
   $("tabBtnLogos").onclick = () => showTab("logos");
   $("tabBtnBrand").onclick = () => showTab("brand");
   $("tabBtnCards").onclick = () => showTab("cards");
+  $("tabBtnLinks").onclick = () => showTab("links");
+
+  // ---- Share links ----
+  function buildLinkUI() {
+    const keep = new Set([...document.querySelectorAll('#lkCards input:checked')].map(i => i.value));
+    $("lkCards").innerHTML = cardIndex.cards.filter(c => c.file || c.sur).map(c =>
+      `<label><input type="checkbox" class="lk" data-k="cards" value="${escH(c.id)}"${keep.has(c.id) ? " checked" : ""}> ${escH(c.name)}</label>`).join("") || '<span class="muted">No card lists published yet</span>';
+    makeLink();
+  }
+  function makeLink() {
+    const pick = k => [...document.querySelectorAll(`.lk[data-k="${k}"]:checked`)].map(i => i.value);
+    const fuel = pick("fuel"), cardsSel = pick("cards"), colour = (document.querySelector('input[name="lkc"]:checked') || {}).value || "card";
+    const q = new URLSearchParams();
+    if (fuel.length) q.set("fuel", fuel.join(","));
+    if (cardsSel.length) q.set("cards", cardsSel.join(","));
+    q.set("colour", colour);
+    if ($("lkNoHgv").checked) q.set("nohgv", "1");
+    if ($("lkOthers").checked) q.set("others", "1");
+    const url = location.origin + location.pathname.replace(/admin\.html$/, "") + "?" + q.toString().replace(/%2C/g, ",");
+    $("lkUrl").value = url; $("lkOpen").href = url;
+    $("lkNote").textContent = colour === "price" && !(fuel.length === 1 && fuel[0] !== "adblue") ? "⚠ Pump price colours need exactly one fuel: Diesel or Unleaded."
+                            : colour === "sur" && cardsSel.length !== 1 ? "⚠ Surcharge colours need exactly one fuel card." : "";
+  }
+  document.addEventListener("change", e => { if (e.target.classList.contains("lk")) makeLink(); });
+  $("lkCopy").onclick = () => navigator.clipboard.writeText($("lkUrl").value).then(() => { $("lkCopy").textContent = "Copied ✓"; setTimeout(() => $("lkCopy").textContent = "Copy", 1500); });
 
   // ---- Fuel cards ----
   function confirmDrop(c) { $("log").innerHTML = ""; log(c.name + " will be removed when you press Publish."); return true; }
