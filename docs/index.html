@@ -58,6 +58,7 @@
   #grad.sur .gbar { background:linear-gradient(90deg, hsl(40 85% 46%), hsl(0 85% 46%)); }
   #grad .gnone { display:flex; align-items:center; gap:5px; font-size:12px; color:#445; margin-bottom:6px; }
   #grad .gnone[hidden], #grad .gbar[hidden] { display:none; }
+  #grad .gl small { color:#7a8591; font-size:10.5px; }
   #grad .gl { display:flex; justify-content:space-between; font-size:12px; color:#445; margin-top:3px; font-variant-numeric:tabular-nums; }
   .key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#445; margin-top:8px; }
   .key span { display:inline-flex; align-items:center; gap:4px; }
@@ -82,6 +83,8 @@
   .sign { background:#22272e; border-radius:8px; padding:5px; margin:6px 0 4px; box-shadow:inset 0 0 0 2px #3a414b; }
   .srow { display:flex; align-items:stretch; gap:5px; }
   .srow + .srow { margin-top:5px; }
+  .slabel .exv { margin-left:auto; padding-left:6px; font:600 11px/1.1 system-ui, sans-serif; letter-spacing:0; text-transform:none;
+                 opacity:.85; text-align:right; white-space:nowrap; }
   .slabel { flex:1; display:flex; align-items:center; padding:0 10px; border-radius:4px; color:#fff;
             font-weight:800; font-size:13px; letter-spacing:.6px; text-transform:uppercase; line-height:1.1; }
   .lcd { position:relative; min-width:118px; box-sizing:border-box; text-align:right; padding:6px 22px 6px 8px; border-radius:4px;
@@ -157,6 +160,7 @@
     .pop .id { display:none; }
     .sign { padding:4px; margin:4px 0 3px; }
     .srow + .srow { margin-top:3px; }
+    .slabel .exv { font-size:9.5px; }
     .slabel { font-size:11px; padding:0 7px; letter-spacing:.3px; }
     .lcd { font-size:19px; min-width:86px; padding:5px 17px 5px 6px; }
     .lcd .ghost { right:17px; top:5px; }
@@ -338,6 +342,8 @@
     el.style.display = "block"; $("closeUn").onclick = () => el.style.display = "none";
   }
 
+  const exVat = p => (p / 1.2).toFixed(1) + "p";   // pump prices include 20% VAT
+
   // ---------- colour by: fuel card (default) / pump price / card surcharge ----------
   const cby = () => (document.querySelector('input[name="cby"]:checked') || {}).value || "card";
   const PRICE_KEYS = { diesel: ["B7S", "B7_STANDARD", "B7"], unleaded: ["E10"] };   // standard grades only
@@ -399,7 +405,7 @@
       $("gNone").parentNode.hidden = !none; $("grad").querySelector(".gbar").hidden = !ranked.length;
     } else {
       $("gNone").parentNode.hidden = true; $("grad").querySelector(".gbar").hidden = false;
-      if (vals.length) { $("gMin").textContent = "Cheapest " + fmt(lo); $("gMax").textContent = "Dearest " + fmt(hi); }
+      if (vals.length) { $("gMin").innerHTML = `Cheapest ${fmt(lo)} <small>(${exVat(lo)} ex VAT)</small>`; $("gMax").innerHTML = `Dearest ${fmt(hi)} <small>(${exVat(hi)} ex VAT)</small>`; }
     }
   }
   map.on("moveend", recolour);
@@ -498,7 +504,7 @@
     const fuels = Object.keys(s.p || {}).sort((a, b) => (FUEL_ORDER.indexOf(a) + 99) % 99 - (FUEL_ORDER.indexOf(b) + 99) % 99);
     let rows = fuels.map(f => {
       const v = s.p[f].toFixed(1), ghost = "8".repeat(v.length - 2) + ".8";
-      return `<div class="srow"><div class="slabel ${FUEL_CLASS[f] || "f-b10"}">${esc(FUEL_NAMES[f] || f)}</div>` +
+      return `<div class="srow"><div class="slabel ${FUEL_CLASS[f] || "f-b10"}">${esc(FUEL_NAMES[f] || f)}<span class="exv">${exVat(s.p[f])} ex VAT</span></div>` +
              `<div class="lcd"><span class="ghost">${ghost}</span>${v}<span class="unit">p</span></div></div>`;
     }).join("");
     if ((s.am || []).includes("adblue_pumps"))
