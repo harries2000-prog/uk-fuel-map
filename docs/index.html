@@ -39,7 +39,7 @@
   #drawer .lh { font-size:12px; color:#556; margin:12px 0 5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
   .chips { display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; }
   .chip { cursor:pointer; --c:#111; }
-  .chip.c-unl { --c:#00843d; } .chip.c-adblue { --c:#0067b1; } .chip.c-ev { --c:#0f8f8a; }
+  .chip.c-unl { --c:#00843d; } .chip.c-pdiesel { --c:#37474f; } .chip.c-super { --c:#c62828; } .chip.c-hvo { --c:#5f7d1e; } .chip.c-adblue { --c:#0067b1; } .chip.c-ev { --c:#0f8f8a; }
   .chip input { position:absolute; opacity:0; pointer-events:none; }
   .chip span { display:flex; align-items:center; justify-content:center; gap:5px; padding:7px 4px; border-radius:8px; font-size:13px;
                font-weight:700; border:2px solid var(--c); color:var(--c); background:#fff; user-select:none; white-space:nowrap; }
@@ -276,6 +276,9 @@
   <div class="chips">
     <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Diesel</span></label>
     <label class="chip c-unl"><input type="checkbox" data-fuel="unleaded"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Unleaded</span></label>
+    <label class="chip c-pdiesel"><input type="checkbox" data-fuel="pdiesel"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Prem. diesel</span></label>
+    <label class="chip c-super"><input type="checkbox" data-fuel="super"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Super unl.</span></label>
+    <label class="chip c-hvo"><input type="checkbox" data-fuel="hvo"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>HVO</span></label>
     <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z"/></svg>AdBlue</span></label>
     <label class="chip c-ev"><input type="checkbox" data-fuel="electric"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>Electric</span></label>
   </div>
@@ -442,7 +445,8 @@
   // ---------- colour by: pump price (default) / card surcharge ----------
   // cbyPref = what the user picked; the mode actually used falls back when that isn't possible
   let cbyPref = "price";
-  const PRICE_KEYS = { diesel: ["B7S", "B7_STANDARD", "B7"], unleaded: ["E10"] };   // standard grades only
+  const PRICE_KEYS = { diesel: ["B7S", "B7_STANDARD", "B7"], unleaded: ["E10"], pdiesel: ["B7P", "B7_PREMIUM"], super: ["E5"], hvo: ["HVO"] };
+  const PRICED_FUELS = ["diesel", "unleaded", "pdiesel", "super", "hvo"];   // fuels with pump prices (and card prices)
   function priceOf(s, fuel) { for (const k of PRICE_KEYS[fuel] || []) if (s.p && s.p[k] != null) return s.p[k]; return null; }
   function surOf(s, card) {
     const r = card && s.cards[card.id]; if (!r) return null;
@@ -492,7 +496,7 @@
       $("gSteps").hidden = true;
       $("gNone").parentNode.hidden = true; $("grad").querySelector(".gbar").hidden = false;
       if (vals.length) {
-        const mpg = gradInfo.fuel === "diesel" || gradInfo.fuel === "unleaded" ? myMpg() : 0, pm = x => mpg ? `<br><small>≈ ${ppm(x, mpg).toFixed(1)}p/mile</small>` : "";
+        const mpg = PRICED_FUELS.includes(gradInfo.fuel) ? myMpg() : 0, pm = x => mpg ? `<br><small>≈ ${ppm(x, mpg).toFixed(1)}p/mile</small>` : "";
         $("gMin").innerHTML = `Cheapest ${fmt(lo)} <small>(${exVat(lo)} ex VAT)</small>${pm(lo)}`; $("gMax").innerHTML = `Dearest ${fmt(hi)} <small>(${exVat(hi)} ex VAT)</small>${pm(hi)}`;
       }
     }
@@ -522,9 +526,9 @@
     const rP = document.querySelector('input[name="cby"][value="price"]'), rS = document.querySelector('input[name="cby"][value="sur"]');
     rP.disabled = !priceOk; rS.disabled = !surOk; rP.checked = mode === "price"; rS.checked = mode === "sur";
     gradInfo = null; let note = "";
-    if (mode === "price") { gradInfo = { mode, fuel: priceFuels[0] }; note = `Standard ${priceFuels[0]} price, for the stations in view. Green = cheapest.`; }
+    if (mode === "price") { gradInfo = { mode, fuel: priceFuels[0] }; note = `${fuelLabel(priceFuels[0])} pump price, for the stations in view. Green = cheapest.`; }
     else if (mode === "sur") { gradInfo = { mode, card: sel[0] }; note = `${esc(sel[0].name)} surcharge${curProvider() ? " via " + esc(curProvider().name) : ""}, for the stations in view. Green = no surcharge, then amber → red for the highest.`; }
-    else note = "Pick <b>Diesel or Unleaded</b> (just one) to colour by pump price" +
+    else note = "Pick <b>one fuel</b> (not AdBlue) to colour by pump price" +
       (sel.length === 1 ? ` – ${curProvider() ? esc(curProvider().name) + " has" : "there's"} no ${esc(sel[0].name)} surcharge list.` : sel.length > 1 ? ", or one fuel card to colour by surcharge." : ".");
     $("cbyNote").innerHTML = note; $("grad").hidden = true;
     $("key").style.display = gradInfo ? "none" : "";
@@ -533,9 +537,8 @@
       counts[s.cat]++;
       if (s.cat === "grey" && !showClosed) continue;
       // fuel: any ticked type; cards: any ticked card
-      if (s.extra) { if (!sel.some(c => s.cards[c.id]) || (anyFuel && !want.diesel)) continue; nExtra++; }
-      else if (anyFuel && !((want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) ||
-                       (want.adblue && (s.am || []).includes("adblue_pumps")))) continue;
+      if (s.extra) { if (!sel.some(c => s.cards[c.id]) || (anyFuel && !(want.diesel || want.pdiesel || want.hvo))) continue; nExtra++; }
+      else if (anyFuel && !passFuel(s, want)) continue;
       if (onlyCard && !sel.some(c => s.cards[c.id])) continue;
       if (gradInfo && gradInfo.mode === "sur" && !s.cards[gradInfo.card.id]) continue;
       if (hideNoHgv && s.cat === "amber") continue;
@@ -559,6 +562,8 @@
   const DIESELS = ["B7S", "B7P", "B7_STANDARD", "B7_PREMIUM", "B7", "B10", "HVO"], UNLEADEDS = ["E10", "E5"];
   const sells = (s, list) => list.some(f => (s.p && s.p[f] != null) || (s.ft || []).includes(f));
   const hasDiesel = s => sells(s, DIESELS), hasUnleaded = s => sells(s, UNLEADEDS);
+  const FUEL_SELLS = { diesel: DIESELS, unleaded: UNLEADEDS, pdiesel: ["B7P", "B7_PREMIUM"], super: ["E5"], hvo: ["HVO"] };
+  const passFuel = (s, want) => Object.keys(FUEL_SELLS).some(k => want[k] && sells(s, FUEL_SELLS[k])) || (want.adblue && (s.am || []).includes("adblue_pumps"));
   function radiusFor(z) { return z < 7 ? 5 : z < 9 ? 6.5 : z < 11 ? 8.5 : z < 13 ? 11 : 13; }
 
   // Fuel-pump shaped marker, drawn on the shared canvas (fast with thousands of stations).
@@ -678,11 +683,11 @@
   const nearFuel = () => shownFuel();
   function nearCands() {   // open stations that pass the fuel filter (card filter ignored – we say whether each takes the card)
     const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
-    const anyFuel = want.diesel || want.unleaded || want.adblue, sel = chosenCards();
+    const anyFuel = Object.keys(want).some(k => k !== "electric" && want[k]), sel = chosenCards();
     return stations.filter(s => {
       if (s.tc) return false;
-      if (s.extra) return sel.some(c => s.cards[c.id]) && (!anyFuel || want.diesel);
-      return !anyFuel || (want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) || (want.adblue && (s.am || []).includes("adblue_pumps"));
+      if (s.extra) return sel.some(c => s.cards[c.id]) && (!anyFuel || want.diesel || want.pdiesel || want.hvo);
+      return !anyFuel || passFuel(s, want);
     });
   }
   function bestCost(s, fk, sel, cp) {   // cheapest way to pay here, pence per litre ex VAT
@@ -716,7 +721,7 @@
       if (!near || nc !== near) h += nc ? `<div class="nrow" data-nid="${esc(nc[0].id)}"><span class="nl">With card</span> ${head(nc[0], nc[1])}${cardTxt(nc[0])}</div>`
         : none("With card", `No ${sel.length === 1 ? esc(sel[0].name) : "ticked card"} site within 20 miles`);
     }
-    h += `<div class="nsec">Cheapest ${fk}${sel.length ? " – card or pump, whichever is less" : " – pump price"} (ex VAT)</div>`;
+    h += `<div class="nsec">Cheapest ${fuelLabel(fk).toLowerCase()}${sel.length ? " – card or pump, whichever is less" : " – pump price"} (ex VAT)</div>`;
     const costed = list.map(([s, d]) => [s, d, bestCost(s, fk, sel, cp)]).filter(x => x[2]);
     for (const r of [5, 10, 15, 20]) {
       const best = costed.filter(x => x[1] <= r).sort((a, b) => a[2].v - b[2].v || a[1] - b[1])[0];
@@ -887,7 +892,8 @@
   }
   const cardFuelPrice = (cp, cid, fuel) => { const x = cp[cid]; return x && x.f[fuel] > 0 ? x.f[fuel] : null; };
   const fuelLabel = k => (CARD_FUELS.find(x => x[0] === k) || [k, k])[1];
-  function shownFuel() { const w = ["diesel", "unleaded"].filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; }); return w.length === 1 ? w[0] : "diesel"; }
+  const tickedPriced = () => PRICED_FUELS.filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; });
+  function shownFuel() { const w = tickedPriced(); return w.length === 1 ? w[0] : !w.length || w.includes("diesel") ? "diesel" : w[0]; }   // the one fuel prices are shown for
   const hiddenCards = () => new Set(prefs.hiddenCards || []);
   function visibleCards() {   // cards in the filter: only ones with a current price, and not hidden
     const cp = cardPrices(), hid = hiddenCards();
@@ -896,11 +902,11 @@
   // cost per mile: the user's own MPG (My settings → MPG)
   const myMpg = () => +prefs.mpg > 0 ? +prefs.mpg : 0;
   const ppm = (pence, mpg) => pence * 4.54609 / mpg;   // pence per litre → pence per mile
-  const cpmFuels = () => { const f = ["diesel", "unleaded"].filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; }); return f.length ? f : ["diesel"]; };
+  const cpmFuels = () => { const f = tickedPriced(); return f.length ? f : ["diesel"]; };
   function pumpCostLine(s) {
     const mpg = myMpg(); if (!mpg) return "";
     return cpmFuels().map(fk => { const p = priceOf(s, fk); return p == null ? "" :
-      `<div class="cpm">${fk === "diesel" ? "Diesel" : "Unleaded"} ≈ <b>${ppm(p, mpg).toFixed(1)}p/mile</b> at the pump <small>(${ppm(p / 1.2, mpg).toFixed(1)}p ex VAT · ${mpg} mpg)</small></div>`; }).join("");
+      `<div class="cpm">${fuelLabel(fk)} ≈ <b>${ppm(p, mpg).toFixed(1)}p/mile</b> at the pump <small>(${ppm(p / 1.2, mpg).toFixed(1)}p ex VAT · ${mpg} mpg)</small></div>`; }).join("");
   }
   function cardPriceLine(c, r) {
     const all = cardPrices(), x = all[c.id]; if (!x) return "";
@@ -1026,7 +1032,7 @@
   function renderMpgTab() {
     const m = myMpg();
     $("stVeh").innerHTML = `<p class="note">Enter your vehicle's average <b>miles per gallon</b> and each station shows the approximate <b>cost per mile</b> –
-      at the pump, and with your card price + surcharge. It uses the fuel you've ticked (diesel if neither is ticked).</p>
+      at the pump, and with your card price + surcharge. It uses the fuels you've ticked (diesel if none is ticked).</p>
       <div class="setrow"><div class="pin"><label>Your MPG <input type="number" id="mpgIn" inputmode="decimal" min="0" step="0.1" value="${m || ""}" placeholder="e.g. 9.5"></label>
         <button class="primary" id="mpgSave">Save</button>${m ? '<button class="lnk" id="mpgClear">Clear</button>' : ""}</div>
         <div class="note" style="margin:6px 0 0">${m ? `Using <b>${m}</b> mpg.` : "No MPG set – cost per mile is hidden."}</div></div>`;
