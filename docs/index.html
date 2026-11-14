@@ -131,6 +131,22 @@
   .pop .links a.tel { color:#1d232b; text-decoration:none; font-variant-numeric:tabular-nums; }
   .crow .cimg { width:30px; height:19px; border-radius:3px; object-fit:cover; flex:none; margin-right:3px; box-shadow:0 0 0 1px #0002; }
   #drawer .lh .hint { text-transform:none; font-weight:500; color:#8a94a0; letter-spacing:0; }
+  /* card provider: collapsible list, logos */
+  #provBox { margin-top:12px; border:1px solid #e1e6ec; border-radius:8px; background:#fff; }
+  #provBox[hidden] { display:none; }
+  #provBox summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; padding:7px 9px; font-size:12px; font-weight:700; color:#556; text-transform:uppercase; letter-spacing:.4px; }
+  #provBox summary::-webkit-details-marker { display:none; }
+  #provBox summary::after { content:"▾"; margin-left:auto; font-size:13px; transition:transform .15s; }
+  #provBox[open] summary::after { transform:rotate(180deg); }
+  #provBox summary .pcur { display:flex; align-items:center; gap:6px; text-transform:none; letter-spacing:0; color:#223; font-weight:600; font-size:13px; }
+  #provBox summary .pcur img { height:20px; max-width:60px; object-fit:contain; }
+  #provList { padding:0 8px 8px; display:grid; gap:5px; }
+  .prov { display:flex; align-items:center; gap:10px; padding:6px 8px; border:2px solid #e1e6ec; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; }
+  .prov input { position:absolute; opacity:0; pointer-events:none; }
+  .prov .pl { width:70px; height:34px; display:flex; align-items:center; justify-content:center; }
+  .prov .pl img { max-width:70px; max-height:34px; }
+  .prov small { display:block; font-weight:400; color:#7a8591; font-size:11px; }
+  .prov.on { border-color:var(--brand,#0b2545); background:#f3f6fa; }
   .cchips { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .cchips[hidden] { display:none; }
   .cchip { position:relative; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 4px 4px;
@@ -208,6 +224,7 @@
   </div>
   <div id="cbyNote"></div>
   <div id="grad" hidden><div class="gnone" hidden><i class="dot" style="background:var(--green)"></i><span id="gNone"></span></div><div class="gbar"></div><div id="gSteps" hidden></div><div class="gl"><span id="gMin"></span><span id="gMax"></span></div></div>
+  <details id="provBox" hidden><summary>Card provider <span class="pcur" id="provCur"></span></summary><div id="provList"></div></details>
   <div class="lh" id="cardsHead">Fuel cards <span class="hint">– stations taking any ticked</span></div>
   <div id="cardChips" class="cchips"></div>
   <div id="cardOpts" hidden>
@@ -266,6 +283,24 @@
   let stations = [], markers = [], meta = {}, logos = {};
   let cards = [];          // [{id, name, img, rows:[...]}] from cards/index.json + cards/<id>.csv
   let selCards = new Set();
+  // card providers (Admin → Card providers): surcharges depend on who supplies the card
+  let providers = [], selProvider = "";   // [{id, name, logo, surRows:{cardId:[rows]}}]
+  const curProvider = () => providers.find(p => p.id === selProvider) || null;
+  function useProvider() {   // put the chosen provider's surcharges on the cards, then re-match
+    const p = curProvider();
+    for (const c of cards) c.surRows = (p && p.surRows[c.id]) || [];
+  }
+  function renderProviders() {
+    $("provBox").hidden = !providers.length;
+    const p = curProvider();
+    $("provCur").innerHTML = p ? (p.logo ? `<img src="providers/${esc(p.logo)}" alt="">` : "") + esc(p.name) : "None";
+    $("provList").innerHTML = providers.map(q => {
+      const n = Object.keys(q.surRows).filter(id => q.surRows[id].length).map(id => (cards.find(c => c.id === id) || { name: id }).name);
+      return `<label class="prov${q.id === selProvider ? " on" : ""}"><input type="radio" name="prov" value="${esc(q.id)}"${q.id === selProvider ? " checked" : ""}>
+        <span class="pl">${q.logo ? `<img src="providers/${esc(q.logo)}" alt="">` : ""}</span>
+        <span>${esc(q.name)}<small>${n.length ? "Surcharges: " + esc(n.join(", ")) : "No surcharge lists yet"}</small></span></label>`;
+    }).join("");
+  }
   const cardImg = c => c.img ? "cards/" + c.img : FuelMap.dummyCardImg(c.name);
 
   // ---------- helpers ----------
@@ -319,6 +354,11 @@
     e.target.closest(".cchip").classList.toggle("on", e.target.checked);
     draw();
   });
+  $("provList").addEventListener("change", e => {
+    if (e.target.name !== "prov") return;
+    selProvider = e.target.value; useProvider(); matchCards(); renderProviders(); draw();
+  });
+  $("provBox").addEventListener("toggle", () => { try { localStorage.setItem("fuelmap-prov-open", $("provBox").open ? "1" : "0"); } catch (e) {} });
   // postcode → stations index (built once)
   let _pcIdx = null;
   function byPcStations() {
@@ -474,9 +514,9 @@
     rP.disabled = !priceOk; rS.disabled = !surOk; rP.checked = mode === "price"; rS.checked = mode === "sur";
     gradInfo = null; let note = "";
     if (mode === "price") { gradInfo = { mode, fuel: priceFuels[0] }; note = `Standard ${priceFuels[0]} price, for the stations in view. Green = cheapest.`; }
-    else if (mode === "sur") { gradInfo = { mode, card: sel[0] }; note = `${esc(sel[0].name)} surcharge, for the stations in view. Green = no surcharge, then amber → red for the highest.`; }
+    else if (mode === "sur") { gradInfo = { mode, card: sel[0] }; note = `${esc(sel[0].name)} surcharge${curProvider() ? " via " + esc(curProvider().name) : ""}, for the stations in view. Green = no surcharge, then amber → red for the highest.`; }
     else note = "Pick <b>Diesel or Unleaded</b> (just one) to colour by pump price" +
-      (sel.length === 1 ? ` – ${esc(sel[0].name)} has no surcharge data.` : sel.length > 1 ? ", or one fuel card to colour by surcharge." : ".");
+      (sel.length === 1 ? ` – ${curProvider() ? esc(curProvider().name) + " has" : "there's"} no ${esc(sel[0].name)} surcharge list.` : sel.length > 1 ? ", or one fuel card to colour by surcharge." : ".");
     $("cbyNote").innerHTML = note; $("grad").hidden = true;
     $("key").style.display = gradInfo ? "none" : "";
     let shown = 0;
@@ -501,7 +541,7 @@
     // no price/surcharge colours possible: every open station is amber
     $("k-green").hidden = true; $("k-red").hidden = true; $("kl-amber").textContent = "Fuel station"; $("c-amber").textContent = shown.toLocaleString();
     recolour();
-    savePrefs({ filters: { want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed, colourBy: cbyPref } });
+    savePrefs({ filters: { want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed, colourBy: cbyPref, provider: selProvider } });
     const nActive = Object.values(want).filter(Boolean).length + sel.length + (hideNoHgv ? 1 : 0);
     $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
   }
@@ -662,14 +702,23 @@
           const t = await (await fetch("cards/" + c.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
           rows = FuelMap.readCardList(t).rows;
         } catch (e) {}
-        let surRows = [];   // separate surcharge layer (Admin → Fuel cards → Surcharges)
-        if (c.sur) try {
-          const t = await (await fetch("cards/" + c.sur.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
-          surRows = FuelMap.readSurchargeList(t).rows;
-        } catch (e) {}
-        return { id: c.id, name: c.name, img: c.img || "", rows, surRows };
+        return { id: c.id, name: c.name, img: c.img || "", rows, surRows: [] };
       }));
     } catch (e) { cards = []; }
+  }
+  async function loadProviders() {
+    try {
+      const r = await fetch("providers/index.json?v=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) return;
+      const idx = await r.json();
+      providers = await Promise.all((idx.providers || []).map(async p => {
+        const surRows = {};
+        await Promise.all(Object.entries(p.sur || {}).map(async ([cid, f]) => {
+          try { surRows[cid] = FuelMap.readSurchargeList(await (await fetch("providers/" + f.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text()).rows; } catch (e) {}
+        }));
+        return { id: p.id, name: p.name, logo: p.logo || "", surRows };
+      }));
+    } catch (e) { providers = []; }
   }
   // ---------- preferences ----------
   // One object holds everything a user can save: { filters:{...}, ...more later }.
@@ -688,6 +737,7 @@
     if (!f) return;
     document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
     cbyPref = f.colourBy === "sur" ? "sur" : "price";
+    if (f.provider) selProvider = f.provider;
     selCards = new Set(f.cards || (f.card ? [f.card] : []));
     $("showOthers").checked = !!f.showOthers; $("hideNoHgv").checked = !!f.hideNoHgv;
     $("showClosed").checked = !!f.showClosed;
@@ -697,11 +747,11 @@
   // A link sets the options when the map opens; the menu can still change them afterwards.
   (function linkOptions() {
     const q = new URLSearchParams(location.search);
-    if (!["fuel", "cards", "colour", "nohgv", "others"].some(k => q.has(k))) return;
+    if (!["fuel", "cards", "colour", "nohgv", "others", "provider"].some(k => q.has(k))) return;
     const list = k => (q.get(k) || "").split(",").map(s => s.trim()).filter(Boolean);
     const want = {}; list("fuel").forEach(f => want[f] = true);
     applyFilters({ want, cards: list("cards"), colourBy: q.get("colour") || "price",
-                   hideNoHgv: q.get("nohgv") === "1", showOthers: q.get("others") === "1", showClosed: false });
+                   hideNoHgv: q.get("nohgv") === "1", provider: q.get("provider") || "", showOthers: q.get("others") === "1", showClosed: false });
   })();
   // ☰ menu: open by default on big screens, closed on phones; remembers your choice
   function setMenu(open, remember) {
@@ -748,7 +798,10 @@
       if (uk) addMask(uk);
     }).catch(() => {});
     fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => logos = j || {}).catch(() => {});
-    await loadCards();
+    await Promise.all([loadCards(), loadProviders()]);
+    if (!providers.some(p => p.id === selProvider)) selProvider = (providers[0] || {}).id || "";
+    useProvider();
+    try { $("provBox").open = localStorage.getItem("fuelmap-prov-open") === "1"; } catch (e) {}
     try {
       const r = await fetch("data/stations.json?v=" + Date.now(), { cache: "no-store" });
       if (!r.ok) throw new Error(r.status);
@@ -758,7 +811,7 @@
       $("meta").textContent = "No price data published yet – use Admin to upload a Fuel Finder CSV.";
       return;
     }
-    matchCards(); draw();
+    matchCards(); renderProviders(); draw();
     locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
     $("meta").innerHTML = `${stations.length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
