@@ -2,7 +2,10 @@
  "cards": [
   {
    "id": "uk-fuels",
-   "name": "UK Fuels"
+   "name": "UK Fuels",
+   "file": "uk-fuels.csv?v=mwfqkyj4",
+   "count": 4407,
+   "updated": "2026-11-14"
   },
   {
    "id": "keyfuels",
@@ -10,15 +13,24 @@
   },
   {
    "id": "fastfuels",
-   "name": "FastFuels"
+   "name": "FastFuels",
+   "file": "fastfuels.csv?v=mwfqkyj5",
+   "count": 3705,
+   "updated": "2026-11-14"
   },
   {
    "id": "esso-national",
-   "name": "Esso National"
+   "name": "Esso National",
+   "file": "esso-national.csv?v=mwfqkyj5",
+   "count": 1468,
+   "updated": "2026-11-14"
   },
   {
    "id": "shell-crt",
-   "name": "Shell CRT"
+   "name": "Shell CRT",
+   "file": "shell-crt.csv?v=mwfqkyj5",
+   "count": 1112,
+   "updated": "2026-11-14"
   },
   {
    "id": "shell-multifleet",
