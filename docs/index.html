@@ -22,9 +22,10 @@
   #brandName { font-weight:800; font-size:16px; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #search { flex:1; min-width:0; max-width:420px; margin-left:auto; padding:8px 10px; border:0; border-radius:8px; font-size:15px; }
   #locate { flex:none; height:38px; }
-  #drawer { position:absolute; top:var(--bar); left:0; bottom:0; width:290px; max-width:86vw; box-sizing:border-box; z-index:1002;
-            background:#fff; box-shadow:2px 0 12px #0003; padding:12px 14px 18px; overflow-y:auto;
-            transform:translateX(-105%); transition:transform .2s ease; font-size:14px; }
+  #drawer { position:absolute; top:var(--bar); right:0; bottom:0; width:290px; max-width:86vw; box-sizing:border-box; z-index:1002;
+            background:#fff; box-shadow:-2px 0 12px #0003; padding:12px 14px 18px; overflow-y:auto;
+            transform:translateX(105%); transition:transform .2s ease; font-size:14px; }
+  #menuBtn { order:10; }   /* PC: menu button sits on the right, next to the menu */
   #drawer.open { transform:none; }
   #drawer .dhead { display:flex; align-items:center; font-weight:800; font-size:15px; margin-bottom:2px; }
   #drawer .dhead button { margin-left:auto; border:0; background:none; font-size:18px; padding:2px 6px; color:#556; }
@@ -68,7 +69,7 @@
   #meta { font-size:12px; color:#556; margin-top:6px; line-height:1.4; }
   #listinfo { font-size:12px; margin-top:6px; }
   #listinfo a { color:#0b62c4; cursor:pointer; }
-  #status { top:calc(var(--bar) + 8px); right:10px; max-width:360px; display:none; z-index:1004; }
+  #status { top:calc(var(--bar) + 8px); left:10px; max-width:360px; display:none; z-index:1004; }
   #drawer .links2 { margin-top:14px; padding-top:10px; border-top:1px solid #e6eaef; font-size:13px; }
   #drawer .links2 a { color:var(--brand); font-weight:600; }
   .pop h3 { margin:0 0 2px; font-size:15px; }
@@ -117,6 +118,7 @@
   .crow .cimg { width:30px; height:19px; border-radius:3px; object-fit:cover; flex:none; margin-right:3px; box-shadow:0 0 0 1px #0002; }
   #drawer .lh .hint { text-transform:none; font-weight:500; color:#8a94a0; letter-spacing:0; }
   .cchips { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .cchips[hidden] { display:none; }
   .cchip { position:relative; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px 4px 4px;
            border:2px solid #dde3ea; border-radius:8px; background:#fff; text-align:center; font-size:12px; line-height:1.15; }
   .cchip input { position:absolute; opacity:0; pointer-events:none; }
@@ -141,7 +143,8 @@
     #search { font-size:16px; padding:6px 8px; }
     #locate { height:34px; padding:4px 8px; }
     #status { left:8px; right:8px; max-width:none; }
-    #drawer { font-size:13px; }
+    #drawer { font-size:13px; left:0; right:auto; box-shadow:2px 0 12px #0003; transform:translateX(-105%); }
+    #menuBtn { order:0; }
     #drawer.open + #scrim { display:block; }
     .chip span { padding:6px 3px; font-size:12px; gap:3px; }
     .leaflet-popup-content { margin:9px 11px; }
@@ -191,7 +194,7 @@
   </div>
   <div id="cbyNote"></div>
   <div id="grad" hidden><div class="gnone" hidden><i class="dot" style="background:var(--green)"></i><span id="gNone"></span></div><div class="gbar"></div><div class="gl"><span id="gMin"></span><span id="gMax"></span></div></div>
-  <div class="lh">Fuel cards <span class="hint">– stations taking any ticked</span></div>
+  <div class="lh" id="cardsHead">Fuel cards <span class="hint">– stations taking any ticked</span></div>
   <div id="cardChips" class="cchips"></div>
   <div id="cardOpts" hidden>
     <label class="small"><input type="checkbox" id="showOthers"> Also show stations that don't take them</label>
@@ -239,7 +242,7 @@
   const map = L.map("map", {
     preferCanvas: true, maxBounds: UK_BOUNDS, maxBoundsViscosity: 0.9, minZoom: 5, zoomSnap: 0.5, zoomControl: false
   }).fitBounds([[49.9, -8.2], [60.9, 1.8]]);
-  L.control.zoom({ position: "topright" }).addTo(map);
+  L.control.zoom({ position: "topleft" }).addTo(map);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Prices: GOV.UK Fuel Finder (OGL v3.0)'
   }).addTo(map);
@@ -285,13 +288,15 @@
     renderCardChips();
   }
   function renderCardChips() {
-    $("cardChips").innerHTML = cards.map(c => {
+    const withList = cards.filter(c => c.rows.length);
+    $("cardsHead").hidden = $("cardChips").hidden = !withList.length;
+    $("cardChips").innerHTML = withList.map(c => {
       const n = c.rows.length - (c.unmatched || []).length, has = c.rows.length > 0;
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
         <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
         <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
         <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span></label>`;
-    }).join("") || '<div class="small" style="grid-column:1/-1">No fuel cards set up yet</div>';
+    }).join("");
   }
   $("cardChips").addEventListener("change", e => {
     const id = e.target.dataset.card; if (!id) return;
@@ -417,7 +422,7 @@
     gradInfo = null; let note = "";
     if (mode === "price") {
       if (fuelOn.length !== 1) note = "Pick <b>one fuel</b> above to colour by its price.";
-      else if (fuelOn[0] === "adblue") note = "<b>AdBlue prices aren't in the Fuel Finder data</b> – pick Diesel or Unleaded.";
+      else if (fuelOn[0] === "adblue") note = "";   // no AdBlue prices in the Fuel Finder data
       else { gradInfo = { mode, fuel: fuelOn[0] }; note = `Standard ${fuelOn[0]} price, for the stations in view. Green = cheapest.`; }
     } else if (mode === "sur") {
       if (sel.length !== 1) note = "Pick <b>one fuel card</b> below to colour by its surcharge.";
