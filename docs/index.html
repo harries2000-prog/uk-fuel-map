@@ -108,7 +108,8 @@
   .cards .ch { display:flex; font-size:11px; font-weight:700; color:#556; background:#f3f5f8; padding:3px 8px; text-transform:uppercase; letter-spacing:.3px; }
   .cards .ch span { margin-left:auto; }
   .crow { display:flex; align-items:center; gap:4px; padding:3px 8px; font-size:13px; border-top:1px solid #eef1f4; }
-  .crow .cname { font-weight:600; }
+  .crow .cname { font-weight:600; display:flex; flex-direction:column; line-height:1.15; }
+  .crow .cgrp { font-weight:400; font-size:10.5px; color:#7a8591; }
   .crow .csur { margin-left:auto; font-variant-numeric:tabular-nums; color:#1e7a3c; font-weight:600; }
   .crow.sel { background:#eef8f1; }
   .crow.no { background:#fff6e5; } .crow.no .csur { color:#9a6200; font-weight:500; }
@@ -288,14 +289,15 @@
         if (hit) { hit.matched++; s.cards[card.id] = hit; }
       }
       card.unmatched = card.rows.filter(r => !r.matched);
+      applySurcharges(card, byPcStations());
     }
     renderCardChips();
   }
   function renderCardChips() {
-    const withList = cards.filter(c => c.rows.length);
+    const withList = cards.filter(hasList);
     $("cardsHead").hidden = $("cardChips").hidden = !withList.length;
     $("cardChips").innerHTML = withList.map(c => {
-      const n = c.rows.length - (c.unmatched || []).length, has = c.rows.length > 0;
+      const n = stations.filter(s => s.cards && s.cards[c.id]).length, has = c.rows.length > 0 || (c.surRows || []).length > 0;
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
         <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
         <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
@@ -308,7 +310,41 @@
     e.target.closest(".cchip").classList.toggle("on", e.target.checked);
     enforceSingle(e.target); draw();
   });
-  const chosenCards = () => cards.filter(c => selCards.has(c.id) && c.rows.length);
+  // postcode → stations index (built once)
+  let _pcIdx = null;
+  function byPcStations() {
+    if (_pcIdx) return _pcIdx;
+    _pcIdx = { pc: new Map(), out: new Map(), id: new Map() };
+    for (const s of stations) {
+      const pc = normPc(s.pc), out = pc.slice(0, -3);
+      if (!_pcIdx.pc.has(pc)) _pcIdx.pc.set(pc, []); _pcIdx.pc.get(pc).push(s);
+      if (!_pcIdx.out.has(out)) _pcIdx.out.set(out, []); _pcIdx.out.get(out).push(s);
+      _pcIdx.id.set(s.id, s);
+    }
+    return _pcIdx;
+  }
+  // Surcharge layer: kept apart from the card's site list, so removing it puts everything back.
+  // A site on the surcharge list also counts as taking the card.
+  function applySurcharges(card, idx) {
+    card.surUnmatched = [];
+    for (const r of card.surRows || []) {
+      let s = r.id && idx.id.get(r.id);
+      const pc = FuelMap.cleanPc(r.pcRaw);
+      if (!s) {
+        const c = idx.pc.get(pc) || idx.pc.get(r.pcRaw);
+        if (c) s = c.length === 1 ? c[0] : c.slice().sort((a, b) => nameScore(r.name, b) - nameScore(r.name, a))[0];
+        else if (r.name) {   // postcode not found: same postcode area + a clear name match
+          const cand = (idx.out.get(pc.slice(0, -3)) || []).map(x => [x, nameScore(r.name, x)]).filter(x => x[1] >= 2).sort((a, b) => b[1] - a[1]);
+          if (cand.length && (cand.length === 1 || cand[0][1] > cand[1][1])) s = cand[0][0];
+        }
+      }
+      if (!s) { card.surUnmatched.push(r); continue; }
+      const hit = s.cards[card.id] || (s.cards[card.id] = { hgv: null, fromSur: true });
+      hit.sur = (+r.ppl.toFixed(2)) + "p"; hit.group = r.group;
+    }
+  }
+  const hasList = c => c.rows.length > 0 || (c.surRows || []).length > 0;
+  const chosenCards = () => cards.filter(c => selCards.has(c.id) && hasList(c));
   function catFor(s, sel) {
     if (s.tc) return "grey";
     if (!sel.length) return "amber";
@@ -323,19 +359,22 @@
     $("kl-amber").textContent = any ? "Doesn't take " + nm : "Fuel station";
     if (any) { $("kl-green").textContent = "Takes " + nm; $("kl-red").textContent = (sel.length === 1 ? sel[0].name : "Card") + " site – no HGVs"; }
     $("cardOpts").hidden = !any;
-    $("listinfo").innerHTML = !cards.some(c => c.rows.length) ? "No fuel card lists published yet" :
+    $("listinfo").innerHTML = !cards.some(hasList) ? "No fuel card lists published yet" :
       sel.map(c => `${esc(c.name)}: <b>${c.rows.length}</b> sites` +
-        (c.unmatched.length ? ` · <a data-un="${esc(c.id)}">${c.unmatched.length} not matched</a>` : "")).join("<br>");
+        (c.unmatched.length ? ` · <a data-un="${esc(c.id)}">${c.unmatched.length} not matched</a>` : "") +
+        ((c.surRows || []).length ? `<br>${esc(c.name)} surcharges: <b>${c.surRows.length - c.surUnmatched.length}</b> applied` +
+          (c.surUnmatched.length ? ` · <a data-unsur="${esc(c.id)}">${c.surUnmatched.length} not matched</a>` : "") : "")).join("<br>");
     $("listinfo").querySelectorAll("[data-un]").forEach(a => a.onclick = () => showUnmatched(cards.find(c => c.id === a.dataset.un)));
+    $("listinfo").querySelectorAll("[data-unsur]").forEach(a => a.onclick = () => showUnmatched(cards.find(c => c.id === a.dataset.unsur), true));
   }
   function nameScore(name, s) {
     const a = new Set(String(name).toLowerCase().split(/\W+/).filter(w => w.length > 2));
     const b = (s.n + " " + s.b + " " + s.a).toLowerCase();
     let n = 0; a.forEach(w => { if (b.includes(w)) n++; }); return n;
   }
-  function showUnmatched(card) {
-    const rows = card.unmatched, el = $("unmatched");
-    el.innerHTML = `<b>${esc(card.name)} sites that didn't match a Fuel Finder station</b>
+  function showUnmatched(card, sur) {
+    const rows = sur ? card.surUnmatched : card.unmatched, el = $("unmatched");
+    el.innerHTML = `<b>${esc(card.name)} ${sur ? "surcharge list rows" : "sites"} that didn't match a Fuel Finder station</b>
       <p style="font-size:13px;margin:6px 0">Usually a postcode that differs slightly. Fix the postcode in your list, or add a <code>node_id</code> column with the station's ID (shown at the bottom of each station's popup).</p>
       <ul>${rows.map(r => `<li>${esc(r.name || "(no name)")} – ${esc(r.raw.join(", "))}</li>`).join("")}</ul>
       <button id="closeUn">Close</button>`;
@@ -516,7 +555,7 @@
     const accepted = cards.filter(c => s.cards[c.id]).sort((a, b) => isSel(b) - isSel(a));
     let cardHtml = accepted.map(c => {
       const r = s.cards[c.id];
-      return `<div class="crow${isSel(c) ? " sel" : ""}"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}</span>` +
+      return `<div class="crow${isSel(c) ? " sel" : ""}"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}${r.group ? `<small class="cgrp">${esc(r.group)}</small>` : ""}</span>` +
              `${r.hgv === false ? '<span class="tag r">No HGVs</span>' : r.hgv === true ? '<span class="tag g">HGV OK</span>' : ""}` +
              `<span class="csur">${r.sur ? esc(r.sur) : "✓"}</span></div>`;
     }).join("");
@@ -615,7 +654,12 @@
           const t = await (await fetch("cards/" + c.file.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
           rows = FuelMap.readCardList(t).rows;
         } catch (e) {}
-        return { id: c.id, name: c.name, img: c.img || "", rows };
+        let surRows = [];   // separate surcharge layer (Admin → Fuel cards → Surcharges)
+        if (c.sur) try {
+          const t = await (await fetch("cards/" + c.sur.split("?")[0] + "?v=" + Date.now(), { cache: "no-store" })).text();
+          surRows = FuelMap.readSurchargeList(t).rows;
+        } catch (e) {}
+        return { id: c.id, name: c.name, img: c.img || "", rows, surRows };
       }));
     } catch (e) { cards = []; }
   }
