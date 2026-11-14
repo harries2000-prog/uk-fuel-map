@@ -91,6 +91,7 @@
   .sign { background:#22272e; border-radius:7px; padding:4px; margin:5px 0 3px; box-shadow:inset 0 0 0 2px #3a414b; }
   .srow { display:grid; grid-template-columns:1fr 104px; gap:4px; }
   .srow + .srow { margin-top:4px; }
+  .oddp { background:#fff3cd; color:#7a4b00; border-radius:5px; padding:4px 6px; font-size:11.5px; line-height:1.35; margin:3px 0 2px; }
   .slabel { display:flex; flex-direction:column; justify-content:center; padding:2px 8px; border-radius:4px; color:#fff; min-width:0;
             font-weight:800; font-size:11.5px; letter-spacing:.4px; text-transform:uppercase; line-height:1.15; }
   .slabel .exv { font:600 10px/1.2 system-ui, sans-serif; letter-spacing:0; text-transform:none; opacity:.8; white-space:nowrap; }
@@ -217,6 +218,7 @@
   #settings .primary { background:#000; color:#ffe058; border-color:#000; font-weight:700; }
   .setrow .fgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px 8px; margin-top:7px; } .setrow .fgrid label { display:flex; flex-direction:column; font-size:11.5px; font-weight:600; color:#445; gap:2px; } .setrow .fgrid input { width:100%; box-sizing:border-box; }
   @media (max-width:600px) { .setrow .fgrid { grid-template-columns:repeat(2, 1fr); } }
+  .setrow .fgrid .u { font-weight:400; color:#6b7684; } .setrow .fgrid .inc { font-weight:400; color:#1e7a3c; font-size:11px; min-height:13px; }
   #stBackup .brow2 { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; } #stBackup .msg { font-size:13px; margin-top:6px; }
   /* ---- phones ---- */
   @media (max-width:600px) {
@@ -371,6 +373,27 @@
     for (const s of stations) { s.cards = {}; for (const [ci, v] of Object.entries(s.k || {})) { const c = cards[ci]; if (c) s.cards[c.id] = { hgv: v === 1 ? true : v === 0 ? false : null }; } }
     providers = (t.providers || []).map(p => ({ id: p.id, name: p.name, logo: p.logo || "", cards: p.cards || [], sur: (t.sur || {})[p.id] || {} }));
     providers.push(OTHER);
+    flagOdd();
+  }
+  // ex VAT ↔ inc VAT (fuel is 20%). Card prices are entered ex VAT; pump prices come inc VAT.
+  const incV = p => p * 1.2, exV = p => p / 1.2;
+  const exInc = (p, d = 2) => `${p.toFixed(d)}p ex VAT · ${incV(p).toFixed(d)}p inc VAT`;
+  // Prices that look wrong (usually the retailer typed the wrong figure into Fuel Finder): far off the local going rate.
+  // They're still shown, with a warning, but not used for colouring or "cheapest".
+  function flagOdd() {
+    const KEYS = ["B7S", "B7P", "E10", "E5", "HVO"], grid = new Map(), cell = (y, x) => Math.floor(y / 0.15) + "," + Math.floor(x / 0.25);
+    const ff = stations.filter(s => !s.extra && s.p);
+    for (const s of ff) { const k = cell(s.y, s.x); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(s); }
+    for (const s of ff) {
+      const cy = Math.floor(s.y / 0.15), cx = Math.floor(s.x / 0.25), near = [];
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const o of grid.get((cy + a) + "," + (cx + b)) || []) if (o !== s && milesBetween(s.y, s.x, o.y, o.x) <= 10) near.push(o);
+      for (const k of KEYS) {
+        const v = s.p[k]; if (v == null) continue;
+        const ps = near.map(o => o.p[k]).filter(x => x != null).sort((a, b) => a - b); if (ps.length < 5) continue;
+        const med = ps[Math.floor(ps.length / 2)];
+        if (v < med * 0.88 || v > med * 1.18) (s.odd || (s.odd = {}))[k] = med;
+      }
+    }
   }
   function renderProviders() {
     $("provBox").hidden = !providers.length;
@@ -406,7 +429,7 @@
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
         <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
         <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
-        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span>${cp[c.id] ? (() => { const fk = cardFuelPrice(cp, c.id, shownFuel()) ? shownFuel() : Object.keys(cp[c.id].f)[0]; return `<span class="cp">${fuelLabel(fk)} ${cp[c.id].f[fk].toFixed(2)}p ex VAT</span>`; })() : ""}</label>`;
+        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span>${cp[c.id] ? (() => { const fk = cardFuelPrice(cp, c.id, shownFuel()) ? shownFuel() : Object.keys(cp[c.id].f)[0]; return `<span class="cp">${fuelLabel(fk)} ${cp[c.id].f[fk].toFixed(2)}p ex · ${incV(cp[c.id].f[fk]).toFixed(2)}p inc VAT</span>`; })() : ""}</label>`;
     }).join("");
   }
   $("cardChips").addEventListener("change", e => {
@@ -447,7 +470,7 @@
   let cbyPref = "price";
   const PRICE_KEYS = { diesel: ["B7S", "B7_STANDARD", "B7"], unleaded: ["E10"], pdiesel: ["B7P", "B7_PREMIUM"], super: ["E5"], hvo: ["HVO"] };
   const PRICED_FUELS = ["diesel", "unleaded", "pdiesel", "super", "hvo"];   // fuels with pump prices (and card prices)
-  function priceOf(s, fuel) { for (const k of PRICE_KEYS[fuel] || []) if (s.p && s.p[k] != null) return s.p[k]; return null; }
+  function priceOf(s, fuel) { for (const k of PRICE_KEYS[fuel] || []) if (s.p && s.p[k] != null) return s.odd && s.odd[k] ? null : s.p[k]; return null; }   // odd-looking prices left out
   function surOf(s, card) {
     const r = card && s.cards[card.id]; if (!r) return null;
     if (!String(r.sur || "").trim()) return 0;   // nothing listed = no surcharge
@@ -611,7 +634,8 @@
     let rows = fuels.map(f => {
       const v = s.p[f].toFixed(1), ghost = "8".repeat(v.length - 2) + ".8";
       return `<div class="srow"><div class="slabel ${FUEL_CLASS[f] || "f-b10"}">${esc(FUEL_NAMES[f] || f)}<span class="exv">${exVat(s.p[f])} ex VAT</span></div>` +
-             `<div class="lcd"><span class="dig"><span class="ghost">${ghost}</span>${v}</span><span class="unit">p</span></div></div>`;
+             `<div class="lcd"><span class="dig"><span class="ghost">${ghost}</span>${v}</span><span class="unit">p</span></div></div>` +
+             (s.odd && s.odd[f] ? `<div class="oddp">⚠ This ${esc((FUEL_NAMES[f] || f).toLowerCase())} price looks wrong – most stations within 10 miles charge about ${s.odd[f].toFixed(1)}p. It's what the retailer reported to Fuel Finder; it isn't used for colours or "cheapest".</div>` : "");
     }).join("");
     if ((s.am || []).includes("adblue_pumps"))
       rows += `<div class="srow"><div class="slabel f-adblue">AdBlue<sup style="font-size:8px">®</sup></div>` +
@@ -632,7 +656,7 @@
     const selSum = sel.length ? sel.map(c => { const r = s.cards[c.id]; return r ? `<span class="ps">${esc(c.name)} ✓${r.sur ? " " + esc(r.sur) : ""}</span>` : `<span class="ps no">${esc(c.name)} ✗</span>`; }).join(" ")
       : `<span class="ps" style="color:#556">${accepted.length} accepted</span>`;
     const cardsBox = cardHtml ? `<details class="pp" data-pp="cards"${ppOpen.cards ? " open" : ""}><summary>Fuel cards ${selSum}</summary>
-      <div class="cards"><div class="ch">Card${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge</span>' : ""}</div>${cardHtml}</div></details>` : "";
+      <div class="cards"><div class="ch">Card${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge (ex VAT)</span>' : ""}</div>${cardHtml}</div></details>` : "";
     const tags = [];
     if (s.tc) tags.push(`<span class="tag r">Temporarily closed</span>`);
     if (s.mw) tags.push(`<span class="tag">Motorway services</span>`);
@@ -693,11 +717,11 @@
   function bestCost(s, fk, sel, cp) {   // cheapest way to pay here, pence per litre ex VAT
     const opts = [];
     const pump = s.extra ? null : priceOf(s, fk);
-    if (pump != null) opts.push({ v: pump / 1.2, how: "pump", txt: `pump ${pump.toFixed(1)}p (${(pump / 1.2).toFixed(1)}p ex VAT)` });
+    if (pump != null) opts.push({ v: pump / 1.2, how: "pump", txt: `pump ${(pump / 1.2).toFixed(1)}p ex · ${pump.toFixed(1)}p inc VAT` });
     for (const c of sel) {
       const h = s.cards[c.id], pr = cardFuelPrice(cp, c.id, fk); if (!h || pr == null) continue;
       const sur = parseFloat(String(h.sur || "").replace(/[^0-9.]/g, "")) || 0;
-      opts.push({ v: pr + sur, how: c.name, txt: `${esc(c.name)} ${pr.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""}` });
+      opts.push({ v: pr + sur, how: c.name, txt: `${esc(c.name)} ${pr.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p surcharge" : ""} ex VAT` });
     }
     return opts.sort((a, b) => a.v - b.v)[0] || null;
   }
@@ -721,13 +745,13 @@
       if (!near || nc !== near) h += nc ? `<div class="nrow" data-nid="${esc(nc[0].id)}"><span class="nl">With card</span> ${head(nc[0], nc[1])}${cardTxt(nc[0])}</div>`
         : none("With card", `No ${sel.length === 1 ? esc(sel[0].name) : "ticked card"} site within 20 miles`);
     }
-    h += `<div class="nsec">Cheapest ${fuelLabel(fk).toLowerCase()}${sel.length ? " – card or pump, whichever is less" : " – pump price"} (ex VAT)</div>`;
+    h += `<div class="nsec">Cheapest ${fuelLabel(fk).toLowerCase()}${sel.length ? " – card or pump, whichever is less" : " – pump price"}</div>`;
     const costed = list.map(([s, d]) => [s, d, bestCost(s, fk, sel, cp)]).filter(x => x[2]);
     for (const r of [5, 10, 15, 20]) {
       const best = costed.filter(x => x[1] <= r).sort((a, b) => a[2].v - b[2].v || a[1] - b[1])[0];
       if (!best) { h += none(r + " mi", "nothing priced"); continue; }
       const [s, d, b] = best;
-      h += `<div class="nrow" data-nid="${esc(s.id)}"><span class="nl">≤ ${r} mi</span> <span class="pay">${b.v.toFixed(1)}p</span> ${b.how === "pump" ? "at the pump" : "on " + esc(b.how)}${mpg ? ` · ≈ ${ppm(b.v, mpg).toFixed(1)}p/mile` : ""}<br>
+      h += `<div class="nrow" data-nid="${esc(s.id)}"><span class="nl">≤ ${r} mi</span> <span class="pay">${b.v.toFixed(1)}p ex · ${incV(b.v).toFixed(1)}p inc</span> ${b.how === "pump" ? "at the pump" : "on " + esc(b.how)}${mpg ? ` · ≈ ${ppm(b.v, mpg).toFixed(1)}p/mile ex · ${ppm(incV(b.v), mpg).toFixed(1)}p inc` : ""}<br>
         ${head(s, d)} · <small>${b.txt}</small></div>`;
     }
     $("nearBody").innerHTML = h;
@@ -911,8 +935,9 @@
   function cardPriceLine(c, r) {
     const all = cardPrices(), x = all[c.id]; if (!x) return "";
     const fk = shownFuel(), p = cardFuelPrice(all, c.id, fk), sur = parseFloat(String(r.sur || "").replace(/[^0-9.]/g, "")) || 0, mpg = myMpg();
-    if (p == null) return `<small class="cyp">${Object.entries(x.f).map(([k, v]) => fuelLabel(k) + " " + v.toFixed(2) + "p").join(" · ")} ex VAT</small>`;
-    return `<small class="cyp">Your ${fuelLabel(fk).toLowerCase()} ${p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""} ex VAT${mpg ? ` ≈ <b>${ppm(p + sur, mpg).toFixed(1)}p/mile</b>` : ""}</small>`;
+    if (p == null) return `<small class="cyp">${Object.entries(x.f).map(([k, v]) => fuelLabel(k) + " " + exInc(v)).join("<br>")}</small>`;
+    const tot = p + sur;
+    return `<small class="cyp">Your ${fuelLabel(fk).toLowerCase()} ${p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p surcharge" : ""} = <b>${exInc(tot)}</b>${mpg ? `<br>≈ <b>${ppm(tot, mpg).toFixed(1)}p/mile</b> ex · ${ppm(incV(tot), mpg).toFixed(1)}p inc VAT` : ""}</small>`;
   }
   // paste a price email / text message: find a price for each fuel it mentions (pence per litre, or £ per litre), and a "valid until" date
   function parsePrice(text) {
@@ -992,9 +1017,9 @@
       list.map(c => {
         const pr = cp[c.id], soon = pr && pr.until <= addDays(t, 1);
         return `<div class="setrow" data-cid="${esc(c.id)}"><div class="top"><img src="${esc(cardImg(c))}" alt=""><div class="nm"><b>${esc(c.name)}</b>
-          <small class="${soon ? "exp" : ""}">${pr ? `${Object.entries(pr.f).map(([k, v]) => fuelLabel(k) + " " + v.toFixed(2) + "p").join(" · ")} ex VAT · ${soon ? "expires" : "until"} ${niceDate(pr.until)}` : "No prices"}</small></div>
+          <small class="${soon ? "exp" : ""}">${pr ? `${soon ? "Expires" : "Until"} ${niceDate(pr.until)}` : "No prices"}</small></div>
           <label><input type="checkbox" data-show${hid.has(c.id) ? "" : " checked"}> Show</label></div>
-          <div class="fgrid">${CARD_FUELS.map(([k, lab]) => `<label>${lab}<input type="number" step="0.01" min="0" inputmode="decimal" data-fp="${k}" placeholder="–" value="${pr && pr.f[k] ? pr.f[k] : ""}"></label>`).join("")}</div>
+          <div class="fgrid">${CARD_FUELS.map(([k, lab]) => `<label>${lab} <span class="u">ex VAT</span><input type="number" step="0.01" min="0" inputmode="decimal" data-fp="${k}" placeholder="–" value="${pr && pr.f[k] ? pr.f[k] : ""}"><span class="inc" data-inc="${k}">${pr && pr.f[k] ? incV(pr.f[k]).toFixed(2) + "p inc VAT" : ""}</span></label>`).join("")}</div>
           <div class="pin">p/litre ex VAT · valid until <input type="date" data-until min="${t}" value="${pr ? pr.until : addDays(t, 7)}">${pr ? ' <button class="lnk" data-clear>Clear all</button>' : ""}</div>
           <button class="lnk" data-paste>Paste price email / text</button>
           <div data-pastebox hidden><textarea rows="3" placeholder="Paste the message from your card provider here"></textarea>
@@ -1011,6 +1036,10 @@
     else delete cp[cid];
     savePrefs({ cardPrices: cp }); renderCardChips(); draw(); renderPricesTab();
   }
+  $("stPrices").addEventListener("input", e => {   // show the inc VAT price as you type
+    if (!e.target.matches("[data-fp]")) return; const v = parseFloat(e.target.value), o = e.target.parentNode.querySelector("[data-inc]");
+    if (o) o.textContent = v > 0 ? incV(v).toFixed(2) + "p inc VAT" : "";
+  });
   $("stPrices").addEventListener("change", e => {
     const row = e.target.closest("[data-cid]"); if (!row) return; const cid = row.dataset.cid;
     if (e.target.matches("[data-show]")) { const h = hiddenCards(); e.target.checked ? h.delete(cid) : h.add(cid); savePrefs({ hiddenCards: [...h] }); renderCardChips(); draw(); return; }
@@ -1025,7 +1054,7 @@
       if (!r) { out.innerHTML = '<span style="color:#b42318">Couldn\'t find a price – type them in the boxes above.</span>'; return; }
       for (const [k, v] of Object.entries(r.f)) { const i = row.querySelector(`[data-fp="${k}"]`); if (i) i.value = v; }
       if (r.until) row.querySelector("[data-until]").value = r.until;
-      out.innerHTML = `Found ${Object.entries(r.f).map(([k, v]) => `${fuelLabel(k)} <b>${v.toFixed(2)}p</b>`).join(", ")} ex VAT${r.until ? " until " + niceDate(r.until) : ""} – check them, then <button data-useprice>Save</button>`;
+      out.innerHTML = `Found ${Object.entries(r.f).map(([k, v]) => `${fuelLabel(k)} <b>${v.toFixed(2)}p</b> ex (${incV(v).toFixed(2)}p inc)`).join(", ")} VAT${r.until ? " until " + niceDate(r.until) : ""} – check them, then <button data-useprice>Save</button>`;
     }
     if (e.target.matches("[data-useprice]")) { const r = readCardRow(row); setCardPrice(cid, r.f, r.until); }
   });
