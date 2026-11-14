@@ -83,12 +83,16 @@
     <h2>Fuel cards</h2>
     <p>Upload each card's site list as a CSV. It needs a heading row with a <b>Postcode</b> column;
        <b>Site name</b>, <b>Surcharge</b> and <b>HGV</b> (Yes/No) columns are optional. Uploading a new list replaces that card's old one.</p>
+    <p class="muted"><b>Surcharges</b> are a separate list per card (your spreadsheet as-is: .ods, .xlsx or .csv) with a Postcode column and a
+       surcharge column – <i>Surcharge PPL</i> in pence, or <i>Surcharge</i> (0.0125 = 1.25p); Site name and Group are optional.
+       It sits on top of the card's site list, so <b>Remove surcharges</b> puts everything back as it was. Sites on it also count as taking the card.</p>
     <p class="muted">Card images: tap the picture or <b>Image</b>. Best size <b>344 × 216 px</b> (bank-card shape) – other shapes are cropped to fit.
        Cards without an image show a sample card.</p>
     <div class="brands" id="cardList"></div>
     <div class="row"><input type="text" id="newCard" placeholder="Add another card…" style="flex:1"><button class="secondary" id="addCard">Add</button></div>
     <input type="file" id="cardFile" accept=".csv,text/csv" hidden>
     <input type="file" id="cardImgFile" accept="image/*" hidden>
+    <input type="file" id="surFile" accept=".csv,.ods,.xlsx,.xls,text/csv" hidden>
   </section>
   </div>
 
@@ -153,7 +157,7 @@
   const $ = id => document.getElementById(id);
   let ffFile = null;
   const DEFAULT_CARDS = ["UK Fuels", "Keyfuels", "FastFuels", "Esso National", "Shell CRT", "Shell Multifleet", "FuelGenie"];
-  let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, imgChanges = {}, cardsDirty = false, cardTarget = null;
+  let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, imgChanges = {}, surChanges = {}, cardsDirty = false, cardTarget = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
   const BRAND_DEFAULT = { name: "Atlantis Transport", colour: "#0b2545", logo: "", showName: true };
   let site = Object.assign({}, BRAND_DEFAULT), brandDirty = false, newLogo = null, removeLogo = false;
@@ -240,10 +244,17 @@
           if (im === "remove") { if (c.img) files.push({ path: "docs/cards/" + c.img.split("?")[0], remove: true }); delete c.img; }
           else { files.push({ path: "docs/cards/" + c.id + ".png", b64: im.split(",")[1] }); c.img = c.id + ".png?v=" + Date.now().toString(36); }
         }
+        for (const c of idx.cards) {
+          const sc = surChanges[c.id];
+          if (!sc || (cardChanges[c.id] && cardChanges[c.id].dropCard)) continue;
+          if (sc.remove) { if (c.sur) files.push({ path: "docs/cards/" + c.sur.split("?")[0], remove: true }); delete c.sur; delete c.surCount; delete c.surUpdated; }
+          else { files.push({ path: "docs/cards/" + c.id + ".surcharges.csv", content: sc.text }); c.sur = c.id + ".surcharges.csv?v=" + Date.now().toString(36); c.surCount = sc.count; c.surUpdated = new Date().toISOString().slice(0, 10); }
+        }
         for (const id of Object.keys(cardChanges)) if (cardChanges[id].dropCard) {
           const c = cardIndex.cards.find(x => x.id === id);
           if (c && c.file) files.push({ path: "docs/cards/" + c.file.split("?")[0], remove: true });
           if (c && c.img) files.push({ path: "docs/cards/" + c.img.split("?")[0], remove: true });
+          if (c && c.sur) files.push({ path: "docs/cards/" + c.sur.split("?")[0], remove: true });
         }
         idx.cards = idx.cards.filter(c => !(cardChanges[c.id] && cardChanges[c.id].dropCard));
         files.push({ path: "docs/cards/index.json", content: JSON.stringify(idx, null, 1) });
@@ -273,7 +284,7 @@
       if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
-      cardChanges = {}; imgChanges = {}; cardsDirty = false; renderCards();
+      cardChanges = {}; imgChanges = {}; surChanges = {}; cardsDirty = false; renderCards();
       brandDirty = false; newLogo = null; removeLogo = false; renderBrand();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
       $("key").value = "";
@@ -314,11 +325,16 @@
                       : c.file ? (c.count || "?") + " sites" + (c.updated ? " · updated " + c.updated : "") : "no list yet";
       const im = imgChanges[c.id], realImg = im ? im !== "remove" : !!c.img;
       const src = im && im !== "remove" ? im : (!im && c.img ? "cards/" + c.img : FuelMap.dummyCardImg(c.name));
-      return `<div class="brow${ch || im ? " changed" : ""}" data-id="${escH(c.id)}">
+      const sc = surChanges[c.id], hasSur = sc ? !sc.remove : !!c.sur;
+      const surInfo = sc ? (sc.remove ? "surcharges will be removed" : sc.count + " surcharges (new – not published yet)")
+                         : c.sur ? (c.surCount || "?") + " surcharges" + (c.surUpdated ? " · " + c.surUpdated : "") : "no surcharges";
+      return `<div class="brow${ch || im || sc ? " changed" : ""}" data-id="${escH(c.id)}">
         <img class="cimg" src="${escH(src)}" alt="" data-act="img" title="Change image">
-        <div class="name"><b>${escH(c.name)}</b><br><span class="n" style="margin:0">${escH(info)}${im ? " · image " + (im === "remove" ? "removed" : "changed") : realImg ? "" : " · sample image"}</span></div>
+        <div class="name"><b>${escH(c.name)}</b><br><span class="n" style="margin:0">${escH(info)}${im ? " · image " + (im === "remove" ? "removed" : "changed") : realImg ? "" : " · sample image"}</span><br><span class="n" style="margin:0">${escH(surInfo)}</span></div>
         <div class="cbtns"><button class="secondary" data-act="up">${has ? "Replace list" : "Upload list"}</button>
         <button class="secondary" data-act="img">Image</button>
+        <button class="secondary" data-act="sur">${hasSur ? "Replace surcharges" : "Surcharges"}</button>
+        ${hasSur ? '<button class="linkbtn" data-act="rmsur">Remove surcharges</button>' : ''}
         ${has ? '<button class="linkbtn" data-act="rm">Remove list</button>' : ''}${realImg ? '<button class="linkbtn" data-act="rmimg">Remove image</button>' : ''}<button class="linkbtn" data-act="drop" title="Remove this card completely">✕</button></div></div>`;
     }).join("");
   }
@@ -328,9 +344,32 @@
     if (b.dataset.act === "up") { cardTarget = id; $("cardFile").value = ""; $("cardFile").click(); return; }
     if (b.dataset.act === "img") { cardTarget = id; $("cardImgFile").value = ""; $("cardImgFile").click(); return; }
     if (b.dataset.act === "rmimg") { if (c.img) imgChanges[id] = "remove"; else delete imgChanges[id]; }
+    if (b.dataset.act === "sur") { cardTarget = id; $("surFile").value = ""; $("surFile").click(); return; }
+    if (b.dataset.act === "rmsur") { if (c.sur) surChanges[id] = { remove: true }; else delete surChanges[id]; }
     if (b.dataset.act === "rm") { if (c.file) cardChanges[id] = { remove: true }; else delete cardChanges[id]; }
     if (b.dataset.act === "drop") { if (!confirmDrop(c)) return; cardChanges[id] = { dropCard: true }; }
-    cardsDirty = Object.keys(cardChanges).length + Object.keys(imgChanges).length > 0; renderCards(); refreshKeyUI();
+    cardsDirty = Object.keys(cardChanges).length + Object.keys(imgChanges).length + Object.keys(surChanges).length > 0; renderCards(); refreshKeyUI();
+  });
+  // spreadsheets (.ods/.xlsx) are read with SheetJS, loaded only when needed
+  async function sheetToCsv(f) {
+    if (/\.csv$/i.test(f.name) || f.type === "text/csv") return f.text();
+    if (!window.XLSX) await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"; s.onload = res; s.onerror = () => rej(new Error("Couldn't load the spreadsheet reader")); document.head.appendChild(s); });
+    const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+    return XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]], { blankrows: false });
+  }
+  $("surFile").addEventListener("change", async () => {
+    const f = $("surFile").files[0]; if (!f || !cardTarget) return;
+    $("log").innerHTML = "";
+    try {
+      const text = (await sheetToCsv(f)).replace(/\u00a0/g, " ");
+      const list = FuelMap.readSurchargeList(text);
+      if (!list.ok || !list.rows.length) { log("✗ " + f.name + " needs a heading row with a Postcode column and a Surcharge (or Surcharge PPL) column.", "err"); return; }
+      surChanges[cardTarget] = { text, count: list.rows.length };
+      cardsDirty = true; renderCards(); refreshKeyUI();
+      const groups = {}; list.rows.forEach(r => { const k = (r.group || "–") + " " + r.ppl + "p"; groups[k] = (groups[k] || 0) + 1; });
+      log("Ready: " + list.rows.length + " surcharges for " + cardIndex.cards.find(x => x.id === cardTarget).name + " – " +
+          Object.entries(groups).map(([k, n]) => k + " ×" + n).join(", ") + ". Press Publish.");
+    } catch (e) { log("✗ Couldn't read " + f.name + ": " + e.message, "err"); }
   });
   $("cardImgFile").addEventListener("change", async () => {
     const f = $("cardImgFile").files[0]; if (!f || !cardTarget) return;
