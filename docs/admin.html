@@ -54,6 +54,11 @@
   #provUnm { margin-top:10px; border:1px solid #f0c48a; background:#fff8ee; border-radius:8px; padding:10px; font-size:13px; }
   #provUnm table { width:100%; border-collapse:collapse; margin-top:6px; }
   #provUnm td, #provUnm th { text-align:left; padding:3px 6px; border-top:1px solid #f2dcc0; }
+  #unmatchedBox h3 { font-size:14px; margin:12px 0 4px; }
+  #unmatchedBox select { max-width:220px; font-size:12px; padding:3px; }
+  #unmatchedBox .rv button { padding:4px 8px; font-size:12px; margin:1px; }
+  #unmatchedBox .rv td { vertical-align:middle; }
+  #unmatchedBox .done { color:#1e7a3c; font-weight:600; }
   #unmatchedBox { margin-top:10px; border:1px solid #f0c48a; background:#fff8ee; border-radius:8px; padding:10px; font-size:13px; }
   #unmatchedBox table { width:100%; border-collapse:collapse; margin-top:6px; }
   #unmatchedBox td, #unmatchedBox th { text-align:left; padding:3px 6px; border-top:1px solid #f2dcc0; vertical-align:top; }
@@ -294,6 +299,10 @@
         }
         idx.cards = idx.cards.filter(c => !(cardChanges[c.id] && cardChanges[c.id].dropCard));
         files.push({ path: "docs/cards/index.json", content: JSON.stringify(idx, null, 1) });
+        if (Object.keys(linkChanges).length) {   // your review decisions – the update routine/updater follow these next time
+          linkIndex = Object.assign({}, linkIndex, linkChanges); for (const k of Object.keys(linkIndex)) if (linkIndex[k] == null) delete linkIndex[k]; linkChanges = {};
+          files.push({ path: "docs/cards/links.json", content: JSON.stringify(linkIndex, null, 1) });
+        }
         what.push("fuel cards");
         cardIndex = idx;
       }
@@ -398,6 +407,9 @@
   // ---- Fuel cards ----
   // ---- Matching report: Fuel Finder is the master list; rows that don't match a station are listed here ----
   let ffStations = null, matchCache = {};
+  // review decisions (cards/links.json): { "<src>": {link:"<node_id>"} | {ignore:1} | {ok:"<node_id>"} | {unlink:1} }
+  let linkIndex = {}, linkChanges = {};
+  fetch("cards/links.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => linkIndex = j || {}).catch(() => {});
   const ffLoad = fetch("data/stations.json?v=" + Date.now()).then(r => r.ok ? r.json() : { stations: [] }).then(d => ffStations = d.stations || []).catch(() => ffStations = []);
   async function cardTexts(c) {
     const ch = cardChanges[c.id], sc = surChanges[c.id];
@@ -410,14 +422,17 @@
     for (const c of cardIndex.cards) {
       const t = await cardTexts(c);
       const rows = t.site ? FuelMap.readCardList(t.site).rows : [], sur = t.sur ? FuelMap.readSurchargeList(t.sur).rows : [];
-      matchCache[c.id] = (rows.length || sur.length) ? Object.assign(FuelMap.matchReport(ffStations, rows, sur), { siteTotal: rows.length, surTotal: sur.length }) : null;
+      matchCache[c.id] = (rows.length || sur.length) ? Object.assign(FuelMap.matchReport(ffStations, rows, sur), { siteTotal: rows.length, surTotal: sur.length,
+        toCheck: rows.filter(r => !r.extra && (/^(150m|400m\+name|postcode)$/.test(r.how || "") || (r.how === "brand" && +r.dist > 300))), allRows: rows }) : null;
     }
     renderCards();
   }
   function matchLine(id) {
     const m = matchCache[id]; if (!m) return "";
     const bits = [];
-    if (m.siteTotal) bits.push(m.siteUnmatched.length ? `<span class="warn" data-unm="${escH(id)}" data-kind="site">${m.siteUnmatched.length} of ${m.siteTotal} sites not matched</span>` : `<span class="okm">✓ all ${m.siteTotal} sites matched</span>`);
+    if (m.siteTotal) bits.push(m.siteUnmatched.length ? `<span class="warn" data-unm="${escH(id)}" data-kind="site">${m.siteUnmatched.length} of ${m.siteTotal} sites not matched</span>` : `<span class="okm">✓ all ${m.siteTotal - (m.siteExtra || []).length} Fuel Finder sites matched</span>`);
+    if ((m.siteExtra || []).length || (m.toCheck || []).length)
+      bits.push(`<span class="warn" data-rev="${escH(id)}">Review: ${(m.siteExtra || []).length} not in Fuel Finder · ${(m.toCheck || []).length} to check</span>`);
     if (m.surTotal) bits.push(m.surUnmatched.length ? `<span class="warn" data-unm="${escH(id)}" data-kind="sur">${m.surUnmatched.length} of ${m.surTotal} surcharges not matched</span>` : `<span class="okm">✓ all ${m.surTotal} surcharges matched</span>`);
     return "<br>" + bits.join(" · ");
   }
@@ -432,6 +447,99 @@
     $("unmatchedBox").hidden = false; $("unmClose").onclick = () => $("unmatchedBox").hidden = true;
     $("unmatchedBox").scrollIntoView({ behavior: "smooth", block: "start" });
   }
+  // ---- Review: card sites not in Fuel Finder, and matches made from further away ----
+  const rvDist = (a, b, c, d) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.round(Math.sqrt(x * x + y * y) * 6371000); };
+  const csvQ = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+  function nearestStations(lat, lng, n) {
+    return ffStations.map(s => [s, rvDist(lat, lng, s.y, s.x)]).filter(([, d]) => d <= 3000).sort((a, b) => a[1] - b[1]).slice(0, n);
+  }
+  async function editCardRow(id, src, fn) {   // change one row of a card's list (by its src) and queue the new list for publishing
+    const c = cardIndex.cards.find(x => x.id === id), text = (await cardTexts(c)).site, rows = FuelMap.parseCSV(text).filter(r => r.some(v => String(v).trim()));
+    const H = {}; rows[0].forEach((h, i) => H[String(h).trim().toLowerCase()] = i);
+    const ix = rows.findIndex((r, i) => i > 0 && r[H.src] === src); if (ix < 0) return;
+    const keep = fn(rows[ix], H);
+    if (keep === false) rows.splice(ix, 1);
+    const out = rows.map(r => r.map(csvQ).join(",")).join("\n");
+    cardChanges[id] = { text: out, count: rows.length - 1 }; cardsDirty = true;
+    await refreshMatches(); refreshKeyUI(); showReview(id);
+  }
+  async function reviewAct(id, src, act, ffId) {
+    const set = (r, H, k, v) => { if (H[k] != null) r[H[k]] = v; };
+    if (act === "link") {
+      const st = ffStations.find(s => s.id === ffId); if (!st) return;
+      linkChanges[src] = { link: ffId };
+      await editCardRow(id, src, (r, H) => { const lat = parseFloat(r[H.lat]), lng = parseFloat(r[H.lng]);
+        set(r, H, "site name", st.n); set(r, H, "postcode", st.pc); set(r, H, "node_id", st.id); set(r, H, "brand", st.b);
+        set(r, H, "match_m", isFinite(lat) ? rvDist(lat, lng, st.y, st.x) : ""); set(r, H, "matched_by", "manual"); set(r, H, "not in fuel finder", ""); });
+    }
+    if (act === "ignore") { linkChanges[src] = { ignore: 1 }; await editCardRow(id, src, () => false); }
+    if (act === "ok") { await editCardRow(id, src, (r, H) => { linkChanges[src] = { ok: r[H.node_id] }; set(r, H, "matched_by", "checked"); }); }
+    if (act === "wrong") {
+      linkChanges[src] = { unlink: 1 };
+      await editCardRow(id, src, (r, H) => { set(r, H, "site name", r[H["source name"]] || r[H["site name"]]); set(r, H, "postcode", ""); set(r, H, "node_id", "");
+        set(r, H, "match_m", ""); set(r, H, "matched_by", ""); set(r, H, "not in fuel finder", "Yes"); });
+    }
+    $("log").innerHTML = ""; log("Review change ready for " + cardIndex.cards.find(x => x.id === id).name + " – press Publish when you've finished reviewing.");
+  }
+  function showReview(id) {
+    const m = matchCache[id], c = cardIndex.cards.find(x => x.id === id); if (!m) return;
+    const ex = m.siteExtra || [], chk = m.toCheck || [], ffById = new Map(ffStations.map(s => [s.id, s]));
+    const opts = r => nearestStations(r.lat, r.lng, 8).map(([s, d]) => `<option value="${escH(s.id)}">${escH(s.n)} – ${escH(s.b)} ${escH(s.pc)} (${d} m)</option>`).join("");
+    $("unmatchedBox").innerHTML = `<b>${escH(c.name)} – review</b>
+      <div class="muted">Fuel Finder is the master list. <b>Link</b> a site to the right Fuel Finder station, <b>Ignore</b> it to drop it, or leave it as a truck stop / depot
+        (shown only when ${escH(c.name)} is ticked). Your choices are saved and used on every future update. Press <b>Publish</b> when done.</div>
+      <h3>Not in Fuel Finder (${ex.length})</h3>
+      ${ex.length ? `<table class="rv"><tr><th>Site</th><th>Where</th><th>Link to a nearby station</th><th></th></tr>${ex.map(r => `<tr data-src="${escH(r.src)}">
+        <td>${escH(r.srcName || r.name)}<br><span class="muted">${escH(r.brand || "")}</span></td><td>${escH([r.town, r.srcPc].filter(Boolean).join(" "))}</td>
+        <td>${opts(r) ? `<select>${opts(r)}</select> <button data-rvact="link">Link</button>` : '<span class="muted">no station within 3 km</span>'}</td>
+        <td><button class="secondary" data-rvact="ignore">Ignore</button></td></tr>`).join("")}</table>` : '<p class="muted">None.</p>'}
+      <h3>Check these matches (${chk.length})</h3>
+      ${chk.length ? `<table class="rv"><tr><th>Card list says</th><th>Matched to</th><th>How</th><th></th></tr>${chk.map(r => { const st = ffById.get(r.id) || {}; return `<tr data-src="${escH(r.src)}">
+        <td>${escH(r.srcName || "")}<br><span class="muted">${escH(r.srcPc || "")}</span></td><td>${escH(st.n || r.name)}<br><span class="muted">${escH((st.b || "") + " " + (st.pc || ""))}</span></td>
+        <td>${escH(r.dist || "")} m<br><span class="muted">${escH(r.how)}</span></td>
+        <td><button data-rvact="ok">Correct</button><button class="secondary" data-rvact="wrong">Wrong</button></td></tr>`; }).join("")}</table>` : '<p class="muted">None – all matches are close and certain.</p>'}
+      <h3>All links (${(m.allRows || []).filter(r => !r.extra).length})</h3>
+      <div class="muted">Every site in the ${escH(c.name)} list and the Fuel Finder station it's linked to. Search, then <b>Change</b> to pick a different station.</div>
+      <input type="text" id="rvSearch" placeholder="Search name, postcode or brand…" style="margin:6px 0" value="${escH(rvQuery)}"><div id="rvAll"></div>
+      <h3>Your saved decisions (${decisionsFor(id).length})</h3>
+      ${decisionsFor(id).length ? `<table class="rv">${decisionsFor(id).map(([src, d, r]) => `<tr data-src="${escH(src)}"><td>${escH((r && (r.srcName || r.name)) || src)}</td>
+        <td>${d.link ? "Linked to " + escH((ffStations.find(s => s.id === d.link) || {}).n || d.link) : d.ignore ? "Ignored" : d.ok ? "Confirmed correct" : d.unlink ? "Not in Fuel Finder" : ""}${linkChanges[src] ? ' <span class="muted">(not published yet)</span>' : ""}</td>
+        <td><button class="secondary" data-rvact="undo">Undo</button></td></tr>`).join("")}</table>
+        <p class="muted">Undo goes back to automatic matching from the next update.</p>` : '<p class="muted">None yet.</p>'}
+      <button class="secondary" id="unmClose" style="margin-top:8px">Close</button>`;
+    $("unmatchedBox").hidden = false; $("unmClose").onclick = () => $("unmatchedBox").hidden = true;
+    $("unmatchedBox").dataset.card = id;
+    $("rvSearch").oninput = () => { rvQuery = $("rvSearch").value; renderAllLinks(id); };
+    renderAllLinks(id);
+  }
+  let rvQuery = "";
+  function decisionsFor(id) {   // decisions that apply to sites in this card's list
+    const m = matchCache[id], bySrc = new Map((m && m.allRows || []).map(r => [r.src, r])), all = Object.assign({}, linkIndex, linkChanges);
+    return Object.keys(all).filter(k => all[k] && bySrc.has(k) || (linkChanges[k] && bySrc.has(k))).map(k => [k, all[k] || {}, bySrc.get(k)]).filter(([, d]) => Object.keys(d).length);
+  }
+  function renderAllLinks(id) {
+    const m = matchCache[id], q = rvQuery.trim().toLowerCase(), ffById = new Map(ffStations.map(s => [s.id, s]));
+    const rows = (m.allRows || []).filter(r => !r.extra && r.src).map(r => [r, ffById.get(r.id) || {}])
+      .filter(([r, st]) => !q || [r.srcName, r.srcPc, r.brand, st.n, st.pc, st.b, r.town].join(" ").toLowerCase().includes(q));
+    $("rvAll").innerHTML = `<table class="rv"><tr><th>Card list says</th><th>Linked to (Fuel Finder)</th><th>How</th><th></th></tr>${rows.slice(0, 100).map(([r, st]) => `<tr data-src="${escH(r.src)}">
+      <td>${escH(r.srcName || r.name)}<br><span class="muted">${escH(r.srcPc || "")}</span></td><td>${escH(st.n || r.name)}<br><span class="muted">${escH((st.b || "") + " " + (st.pc || r.pc || ""))}</span></td>
+      <td>${escH(r.dist || "")}${r.dist ? " m" : ""}<br><span class="muted">${escH(r.how || "")}</span></td>
+      <td class="chg"><button class="secondary" data-rvact="change">Change</button></td></tr>`).join("")}</table>
+      ${rows.length > 100 ? `<p class="muted">Showing 100 of ${rows.length} – search to narrow it down.</p>` : ""}`;
+  }
+  $("unmatchedBox").addEventListener("click", e => {
+    const b = e.target.closest("[data-rvact]"); if (!b) return;
+    const tr = b.closest("[data-src]"), id = $("unmatchedBox").dataset.card, sel = tr.querySelector("select");
+    if (b.dataset.rvact === "change") {   // show nearby stations to pick from
+      const r = (matchCache[id].allRows || []).find(x => x.src === tr.dataset.src); if (!r) return;
+      const near = isFinite(r.lat) ? nearestStations(r.lat, r.lng, 10) : [];
+      tr.querySelector(".chg").innerHTML = (near.length ? `<select>${near.map(([s, d]) => `<option value="${escH(s.id)}"${s.id === r.id ? " selected" : ""}>${escH(s.n)} – ${escH(s.b)} ${escH(s.pc)} (${d} m)</option>`).join("")}</select>
+        <button data-rvact="link">Link</button>` : "") + `<button class="secondary" data-rvact="wrong">Not in Fuel Finder</button><button class="secondary" data-rvact="ignore">Ignore</button>`;
+      return;
+    }
+    if (b.dataset.rvact === "undo") { linkChanges[tr.dataset.src] = null; cardsDirty = true; refreshKeyUI(); showReview(id); $("log").innerHTML = ""; log("Undo ready – press Publish."); return; }
+    b.disabled = true; reviewAct(id, tr.dataset.src, b.dataset.rvact, sel && sel.value);
+  });
   function confirmDrop(c) { $("log").innerHTML = ""; log(c.name + " will be removed when you press Publish."); return true; }
   function renderCards() {
     $("cardList").innerHTML = cardIndex.cards.map(c => {
@@ -456,6 +564,7 @@
   }
   $("cardList").addEventListener("click", e => {
     const u = e.target.closest("[data-unm]"); if (u) { showUnmatchedList(u.dataset.unm, u.dataset.kind); return; }
+    const rv = e.target.closest("[data-rev]"); if (rv) { showReview(rv.dataset.rev); return; }
     const b = e.target.closest("[data-act]"); if (!b) return;
     const id = b.closest(".brow").dataset.id, c = cardIndex.cards.find(x => x.id === id);
     if (b.dataset.act === "up") { cardTarget = id; $("cardFile").value = ""; $("cardFile").click(); return; }
