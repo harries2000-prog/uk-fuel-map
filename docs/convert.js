@@ -152,6 +152,36 @@
     return { rows: out, hasPostcode: iPc >= 0 || iId >= 0 };
   }
 
+  /* Surcharge list for a card (kept as a separate file, applied on top of the card's site list).
+     Needs a Postcode (or node_id) column and a surcharge column. "Surcharge PPL" (pence) is preferred;
+     a plain "Surcharge" under 1 is read as pounds (0.0125 -> 1.25p). Site name / Group optional. */
+  function readSurchargeList(text) {
+    const rows = parseCSV(text);
+    if (rows.length < 2) return { rows: [], ok: false };
+    const head = rows[0];
+    const iPc = findCol(head, [/post\s*code|postal/, /^pc$/, /post/]);
+    const iId = findCol(head, [/node.?id/, /fuel.?finder.?id/]);
+    const iName = findCol(head, [/site.?name/, /^name$/, /station/, /site/, /name/]);
+    const iPpl = findCol(head, [/ppl|pence|p\/l/]);
+    const iSur = findCol(head, [/^surcharge$/, /surcharge(?!.*group)/]);
+    const iGrp = findCol(head, [/group/, /band|tier/]);
+    const out = [];
+    for (const r of rows.slice(1)) {
+      const g = i => (i >= 0 && i < r.length ? String(r[i]).trim() : "");
+      let p = parseFloat(g(iPpl).replace(/[^0-9.\-]/g, ""));
+      if (!isFinite(p)) { const s = g(iSur), v = parseFloat(s.replace(/[^0-9.\-]/g, "")); if (isFinite(v)) p = (v < 1 || /£/.test(s)) && !/p\b/i.test(s) ? v * 100 : v; }
+      const rec = { pcRaw: normPc(g(iPc)), id: g(iId), name: g(iName), group: g(iGrp).replace(/^[A-Z]\s*-\s*/, "").trim(), ppl: isFinite(p) ? Math.round(p * 100) / 100 : null, raw: r };
+      if ((rec.pcRaw || rec.id) && rec.ppl != null) out.push(rec);
+    }
+    return { rows: out, ok: (iPc >= 0 || iId >= 0) && (iPpl >= 0 || iSur >= 0) };
+  }
+  /* "GU206PJN" (direction letter added) -> "GU206PJ"; returns the longest valid UK postcode prefix */
+  function cleanPc(pc) {
+    pc = normPc(pc);
+    for (let n = pc.length; n >= 5; n--) if (/^[A-Z]{1,2}[0-9][A-Z0-9]?[0-9][A-Z]{2}$/.test(pc.slice(0, n))) return pc.slice(0, n);
+    return pc;
+  }
+
   /* Brand names -> logo keys: "Esso " / "ESSO" -> "ESSO" -> file "esso.png" */
   const brandKey = b => String(b || "").toUpperCase().replace(/\s+/g, " ").trim();
   const brandSlug = b => brandKey(b).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "brand";
@@ -183,7 +213,7 @@
 <text x="98" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#6b7684">LOGO</text>
 </svg>`);
 
-  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
+  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, readSurchargeList, cleanPc, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FuelMap = api;
 })(this);
