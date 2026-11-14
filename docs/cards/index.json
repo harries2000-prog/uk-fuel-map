@@ -5,7 +5,10 @@
    "name": "UK Fuels",
    "file": "uk-fuels.csv?v=mwfsbloz",
    "count": 4517,
-   "updated": "2026-11-14"
+   "updated": "2026-11-14",
+   "sur": "uk-fuels.surcharges.csv?v=mwfslwtk",
+   "surCount": 1427,
+   "surUpdated": "2026-11-14"
   },
   {
    "id": "keyfuels",
