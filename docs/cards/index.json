@@ -3,8 +3,8 @@
   {
    "id": "uk-fuels",
    "name": "UK Fuels",
-   "file": "uk-fuels.csv?v=mwfqkyj4",
-   "count": 4407,
+   "file": "uk-fuels.csv?v=mwfqsfw1",
+   "count": 4513,
    "updated": "2026-11-14"
   },
   {
@@ -14,22 +14,22 @@
   {
    "id": "fastfuels",
    "name": "FastFuels",
-   "file": "fastfuels.csv?v=mwfqkyj5",
-   "count": 3705,
+   "file": "fastfuels.csv?v=mwfqsfw1",
+   "count": 3790,
    "updated": "2026-11-14"
   },
   {
    "id": "esso-national",
    "name": "Esso National",
-   "file": "esso-national.csv?v=mwfqkyj5",
-   "count": 1468,
+   "file": "esso-national.csv?v=mwfqsfw1",
+   "count": 1496,
    "updated": "2026-11-14"
   },
   {
    "id": "shell-crt",
    "name": "Shell CRT",
-   "file": "shell-crt.csv?v=mwfqkyj5",
-   "count": 1112,
+   "file": "shell-crt.csv?v=mwfqsfw1",
+   "count": 1110,
    "updated": "2026-11-14"
   },
   {
