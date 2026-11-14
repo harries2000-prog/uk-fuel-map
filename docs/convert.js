@@ -226,6 +226,68 @@
     return rep;
   }
 
+
+  /* ---- The one table the map reads (docs/data/map.json) ----
+     Built on Chris's PC by the updater / Admin from the working files (work/…): Fuel Finder stations, each card's site list,
+     and each provider's surcharge lists. The map does no matching of its own. */
+  const TWIN_RE = /^(.+?)\s+(?:(?:NORTH|SOUTH|EAST|WEST)(?:BOUND)?|[NSEW]\/?B|(?:NORTH|SOUTH|EAST|WEST) ?SIDE)((?:\s+(?:SERVICE AREA|SERVICES|SERVICE STATION|MSA|FORECOURT|PFS|SITE|S\/S))*)\s*$/;
+  const distM = (a, b, c, d) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.sqrt(x * x + y * y) * 6371000; };
+  function twinIndex(stations) {   // two-sided services: same brand + same name apart from the direction word, within 2 km
+    const g = new Map(), out = new Map();
+    for (const x of stations) {
+      const m = String(x.n || "").toUpperCase().replace(/[^A-Z0-9/ ]+/g, " ").replace(/\s+/g, " ").trim().match(TWIN_RE); if (!m || m[1].length < 3) continue;
+      const k = String(x.b || "").toUpperCase().replace(/[^A-Z0-9]/g, "") + "|" + (m[1] + m[2]).trim();
+      if (!g.has(k)) g.set(k, []); g.get(k).push(x);
+    }
+    for (const a of g.values()) if (a.length > 1) for (const x of a) out.set(x, a.filter(y => y !== x && distM(x.y, x.x, y.y, y.x) <= 2000));
+    return out;
+  }
+  // ff: stations.json object; cardIdx: {cards:[{id,name,img}]}; cardTexts: {cardId: csv}; provIdx: {providers:[{id,name,logo,sur:{cardId:{}}}]}; provTexts: {provId: {cardId: csv}}
+  function buildMapTable(ff, cardIdx, cardTexts, provIdx, provTexts) {
+    const stations = (ff.stations || []).map(s => Object.assign({}, s)), idx = stationIndex(stations), report = {};
+    const cards = (cardIdx.cards || []).map(c => ({ id: c.id, name: c.name, img: c.img || "" }));
+    const k = new Map();   // station → {cardIndex: 1 HGV ok | 0 no HGVs | 2 unknown}
+    const put = (s, ci, hgv) => { if (!k.has(s)) k.set(s, {}); const o = k.get(s); const v = hgv === true ? 1 : hgv === false ? 0 : 2; if (o[ci] == null || o[ci] === 2) o[ci] = v; };
+    const extras = [], xGrid = new Map();
+    cards.forEach((c, ci) => {
+      const rows = cardTexts[c.id] ? readUkFuelsList(cardTexts[c.id]).rows : [];
+      let matched = 0, unmatched = 0, extra = 0;
+      for (const r of rows) {
+        if (r.extra) {   // not in Fuel Finder (truck stop / depot) – placed by its own position, sites on the same spot shared between cards
+          const ky = Math.round(r.lat * 400), kx = Math.round(r.lng * 250); let s = null;
+          for (let a = -1; a <= 1 && !s; a++) for (let b = -1; b <= 1 && !s; b++) s = (xGrid.get((ky + a) + "," + (kx + b)) || []).find(e => Math.abs(e.y - r.lat) < 0.0005 && Math.abs(e.x - r.lng) < 0.0008) || null;
+          if (!s) { s = { id: "x:" + (r.src || r.lat + "," + r.lng), extra: 1, n: r.srcName || r.name, b: r.brand || "", a: r.addr || "", c: r.town || "", pc: r.srcPc || "", y: +r.lat.toFixed(5), x: +r.lng.toFixed(5), p: {}, ho: r.hours || "" };
+            extras.push(s); const key = ky + "," + kx; if (!xGrid.has(key)) xGrid.set(key, []); xGrid.get(key).push(s); }
+          put(s, ci, r.hgv); extra++; continue;
+        }
+        const s = findStation(idx, r, r.pc, false);
+        if (s) { put(s, ci, r.hgv); matched++; } else unmatched++;
+      }
+      c.count = rows.length; report[c.id] = { sites: rows.length, matched, unmatched, extra };
+    });
+    // surcharges per provider and card; the other side of a two-sided services gets the same unless listed itself
+    const twins = twinIndex(stations), cardIx = new Map(cards.map((c, i) => [c.id, i]));
+    const providers = [], sur = {};
+    for (const p of provIdx.providers || []) {
+      const pc = []; sur[p.id] = {};
+      for (const cid of Object.keys(p.sur || {})) {
+        const text = (provTexts[p.id] || {})[cid]; if (!text || !cardIx.has(cid)) continue;
+        const rows = readSurchargeList(text).rows, m = {}, listed = new Set(); let unm = 0;
+        for (const r of rows) {
+          const s = findStation(idx, r, r.pcRaw, true); if (!s) { unm++; continue; }
+          m[s.id] = r.group ? [r.ppl, r.group] : [r.ppl]; listed.add(s); put(s, cardIx.get(cid), null);   // a site on the surcharge list takes the card
+        }
+        for (const s of listed) for (const t of twins.get(s) || []) if (!listed.has(t)) { m[t.id] = m[s.id]; put(t, cardIx.get(cid), null); }
+        sur[p.id][cid] = m; pc.push(cid);
+        report[p.id + "|" + cid] = { rows: rows.length, matched: rows.length - unm, unmatched: unm };
+      }
+      providers.push({ id: p.id, name: p.name, logo: p.logo || "", cards: pc });
+    }
+    const all = stations.concat(extras);
+    for (const s of all) { const o = k.get(s); if (o) s.k = o; }
+    return { table: { updated: new Date().toISOString(), published: ff.published, source: ff.source, count: stations.length, cards, providers, sur, stations: all }, report };
+  }
+
   /* Brand names -> logo keys: "Esso " / "ESSO" -> "ESSO" -> file "esso.png" */
   const brandKey = b => String(b || "").toUpperCase().replace(/\s+/g, " ").trim();
   const brandSlug = b => brandKey(b).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "brand";
@@ -257,7 +319,7 @@
 <text x="98" y="82" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#6b7684">LOGO</text>
 </svg>`);
 
-  const api = { parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, readSurchargeList, cleanPc, matchReport, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
+  const api = { buildMapTable, parseCSV, convertFuelFinder, readCardList: readUkFuelsList, readUkFuelsList, readSurchargeList, cleanPc, matchReport, normPc, brandKey, brandSlug, dummyCardImg, GENERIC_LOGO };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.FuelMap = api;
 })(this);
