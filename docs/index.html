@@ -306,7 +306,6 @@
 <div id="unmatched" class="panel"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <script src="convert.js"></script>
 <script>
 (function () {
@@ -456,8 +455,28 @@
   }
   // Surcharge layer: kept apart from the card's site list, so removing it puts everything back.
   // A site on the surcharge list also counts as taking the card.
+  // services with two sides: same brand + same name apart from the direction word, within 2 km
+  let _twins = null;
+  const distM = (a, b, c, d) => { const r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return Math.sqrt(x * x + y * y) * 6371000; };
+  const TWIN_RE = /^(.+?)\s+(?:(?:NORTH|SOUTH|EAST|WEST)(?:BOUND)?|[NSEW]\/?B|(?:NORTH|SOUTH|EAST|WEST) ?SIDE)((?:\s+(?:SERVICE AREA|SERVICES|SERVICE STATION|MSA|FORECOURT|PFS|SITE|S\/S))*)\s*$/;
+  function twinsOf(s) {
+    if (!_twins) {
+      _twins = new Map(); const g = new Map();
+      for (const x of stations) {
+        if (x.extra) continue;
+        const m = String(x.n || "").toUpperCase().replace(/[^A-Z0-9/ ]+/g, " ").replace(/\s+/g, " ").trim().match(TWIN_RE); if (!m || m[1].length < 3) continue;
+        const k = String(x.b || "").toUpperCase().replace(/[^A-Z0-9]/g, "") + "|" + (m[1] + m[2]).trim();
+        if (!g.has(k)) g.set(k, []); g.get(k).push(x);
+      }
+      for (const a of g.values()) if (a.length > 1) for (const x of a) _twins.set(x, a.filter(y => y !== x && distM(x.y, x.x, y.y, y.x) <= 2000));
+    }
+    return _twins.get(s) || [];
+  }
   function applySurcharges(card, idx) {
     card.surUnmatched = [];
+    const listed = new Set();
+    for (const r of card.rows) if (r.surSet) { delete r.sur; delete r.group; delete r.twin; delete r.surSet; }   // undo the last provider's surcharges
+    for (const r of card.rows) delete r.noSur;
     for (const r of card.surRows || []) {
       let s = r.id && idx.id.get(r.id);
       const pc = FuelMap.cleanPc(r.pcRaw);
@@ -471,7 +490,15 @@
       }
       if (!s) { card.surUnmatched.push(r); continue; }
       const hit = s.cards[card.id] || (s.cards[card.id] = { hgv: null, fromSur: true });
-      hit.sur = (+r.ppl.toFixed(2)) + "p"; hit.group = r.group;
+      hit.sur = (+r.ppl.toFixed(2)) + "p"; hit.group = r.group; hit.surSet = 1; delete hit.twin; listed.add(s);
+    }
+    // the other side of a services (…NORTH / …SOUTH, EAST / WEST, Northbound / Southbound) gets the same surcharge,
+    // unless the list gives that side its own
+    for (const s of listed) for (const t of twinsOf(s)) {
+      if (listed.has(t)) continue;
+      const src = s.cards[card.id], hit = t.cards[card.id] || (t.cards[card.id] = { hgv: null, fromSur: true });
+      if (hit.sur && !hit.twin) continue;
+      hit.sur = src.sur; hit.group = src.group; hit.twin = 1; hit.surSet = 1;
     }
     // with a surcharge list, any other site taking the card has no surcharge
     if ((card.surRows || []).length) for (const s of stations) { const h = s.cards[card.id]; if (h && !h.sur) h.noSur = true; }
@@ -735,7 +762,8 @@
     const world = [[-89, -179], [-89, 179], [89, 179], [89, -179]];
     const holes = polys.map(p => p[0].map(c => [c[1], c[0]]));
     const mask = L.polygon([world, ...holes], {
-      renderer: L.svg(), stroke: false, fillColor: "#e9edf1", fillOpacity: 0.85, interactive: false
+      renderer: L.svg(), stroke: false, fillColor: "#e9edf1", fillOpacity: 0.85, interactive: false,
+      attribution: "UK outline: ONS, contains OS data © Crown copyright"
     });
     const outline = L.polygon(holes, { renderer: L.svg(), color: "#5b6b7c", weight: 1, fill: false, interactive: false });
     function sync() {
@@ -1072,11 +1100,8 @@
 
   // ---------- start ----------
   (async function start() {
-    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(r => r.ok ? r.json() : null).then(t => {
-      if (!t || !window.topojson) return;
-      const uk = topojson.feature(t, t.objects.countries).features.find(f => f.id === "826");
-      if (uk) addMask(uk);
-    }).catch(() => {});
+    // UK coastline (ONS Countries Dec 2023, clipped to the high-water mark, simplified to ~100 m)
+    fetch("data/uk-outline.json").then(r => r.ok ? r.json() : null).then(g => { if (g) addMask({ geometry: g }); }).catch(() => {});
     fetch("logos/index.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : {}).then(j => logos = j || {}).catch(() => {});
     await Promise.all([loadCards(), loadProviders()]);
     if (!providers.some(p => p.id === selProvider)) selProvider = OTHER.id;
