@@ -22,6 +22,19 @@
   #brandName { font-weight:800; font-size:16px; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #search { flex:1; min-width:0; max-width:420px; margin-left:auto; padding:8px 10px; border:0; border-radius:8px; font-size:15px; }
   #locate { flex:none; height:38px; }
+  #acct { flex:none; height:38px; width:40px; padding:0; display:flex; align-items:center; justify-content:center; }
+  #acct svg { width:20px; height:20px; }
+  #acct.in { background:#e7f5ec; border-color:#1e9e4a; color:#1e7a3c; }
+  #acctPanel { position:absolute; top:calc(var(--bar) + 8px); right:10px; z-index:1003; width:300px; max-width:calc(100vw - 20px);
+               box-sizing:border-box; background:#fff; border-radius:10px; box-shadow:0 4px 18px #0004; padding:14px; font-size:14px; display:none; }
+  #acctPanel.open { display:block; }
+  #acctPanel h4 { margin:0 0 6px; font-size:15px; }
+  #acctPanel p { margin:6px 0; color:#556; font-size:13px; }
+  #acctPanel input[type=email] { width:100%; box-sizing:border-box; padding:9px 10px; font-size:15px; border:1px solid #c9d0d8; border-radius:8px; margin:6px 0; }
+  #acctPanel .btn { width:100%; margin-top:6px; padding:9px; font-weight:700; }
+  #acctPanel .btn.main { background:var(--brand,#0b2545); color:var(--brand-ink,#fff); border-color:transparent; }
+  #acctPanel .ok { color:#1e7a3c; } #acctPanel .err { color:#b3261e; }
+  #acctPanel .x { float:right; border:0; background:none; font-size:16px; padding:0 2px; color:#667; }
   #drawer { position:absolute; top:var(--bar); left:0; bottom:0; width:290px; max-width:86vw; box-sizing:border-box; z-index:1002;
             background:#fff; box-shadow:2px 0 12px #0003; padding:12px 14px 18px; overflow-y:auto;
             transform:translateX(-105%); transition:transform .2s ease; font-size:14px; }
@@ -137,6 +150,7 @@
     #brand.has-logo #brandName { display:none; }
     #search { font-size:16px; padding:6px 8px; }
     #locate { height:34px; padding:4px 8px; }
+    #acct { height:34px; width:36px; }
     #status { left:8px; right:8px; max-width:none; }
     #drawer { font-size:13px; }
     #drawer.open + #scrim { display:block; }
@@ -168,7 +182,9 @@
   <div id="brand"><img id="brandLogo" alt="" hidden><span id="brandName">Atlantis Transport</span></div>
   <input id="search" type="search" placeholder="Find town, postcode or station…" autocomplete="off">
   <button id="locate" title="Show my location">📍</button>
+  <button id="acct" title="Sign in to save your defaults" aria-label="Account" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z"/></svg></button>
 </header>
+<div id="acctPanel" role="dialog" aria-label="Account"></div>
 <div id="map"></div>
 <div id="status" class="panel"></div>
 
@@ -366,9 +382,13 @@
       if (m._v != null) vals.push(m._v);
     }
     const lo = Math.min(...vals), hi = Math.max(...vals);
+    // colour by rank, so one very dear (or cheap) site doesn't squash everyone else into one colour
+    const sorted = vals.slice().sort((a, b) => a - b), rank = new Map();
+    sorted.forEach((v, i) => { if (!rank.has(v)) rank.set(v, i); });
+    const n = sorted.length;
     for (const m of markers) {
       if (m._v === undefined) continue;
-      const c = m._v == null ? COLORS.grey : gradCol(hi > lo ? (m._v - lo) / (hi - lo) : 0);
+      const c = m._v == null ? COLORS.grey : gradCol(n > 1 && hi > lo ? rank.get(m._v) / (n - 1) : 0);
       if (m.options.fillColor !== c) m.setStyle({ fillColor: c });
     }
     const fmt = v => v.toFixed(1) + "p";
@@ -628,6 +648,81 @@
   $("hideNoHgv").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
 
+  // ---------- user accounts (optional – switched on in Admin → Logins) ----------
+  // Sign-in is by emailed link (Supabase). Each user's settings live in one JSON object,
+  // so new kinds of saved preference can be added later without changing the database.
+  let sb = null, user = null, cloud = {}, acctMsg = "";
+  function loadScript(src) {
+    return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  }
+  async function initAuth(cfg) {
+    if (!cfg || !cfg.url || !cfg.key || sb) return;
+    try {
+      await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js");
+      sb = window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, detectSessionInUrl: true } });
+    } catch (e) { return; }
+    $("acct").hidden = false;
+    sb.auth.onAuthStateChange((_ev, session) => setUser(session ? session.user : null));
+    const { data } = await sb.auth.getSession();
+    setUser(data && data.session ? data.session.user : null);
+  }
+  async function setUser(u) {
+    if ((u && u.id) === (user && user.id)) return;
+    user = u || null; cloud = {};
+    if (user) {
+      const { data, error } = await sb.from("user_prefs").select("prefs").eq("user_id", user.id).maybeSingle();
+      if (!error && data && data.prefs) cloud = data.prefs;
+      if (cloud.defaults && cloud.defaults.filters) useDefaults(false);
+      if (location.hash.includes("access_token")) history.replaceState(null, "", location.pathname + location.search);
+    }
+    renderAcct();
+  }
+  function useDefaults(say) {
+    applyFilters(cloud.defaults.filters); enforceSingle(null); renderCardChips(); draw();
+    if (say) { acctMsg = '<p class="ok">Your defaults are back on.</p>'; renderAcct(); }
+  }
+  async function saveCloud() {
+    const { error } = await sb.from("user_prefs").upsert({ user_id: user.id, prefs: cloud, updated_at: new Date().toISOString() });
+    return error;
+  }
+  function renderAcct() {
+    const el = $("acctPanel"), icon = $("acct");
+    icon.classList.toggle("in", !!user);
+    icon.title = user ? "Signed in as " + user.email : "Sign in to save your defaults";
+    const close = '<button class="x" id="acctX" aria-label="Close">✕</button>';
+    if (!user) {
+      el.innerHTML = `${close}<h4>Sign in</h4><p>Save your favourite filters and they'll be set up whenever you open the map, on any device.</p>
+        <input type="email" id="acctEmail" placeholder="you@example.com" autocomplete="email">
+        <button class="btn main" id="acctSend">Email me a sign-in link</button>${acctMsg}`;
+      $("acctSend").onclick = sendLink;
+      $("acctEmail").onkeydown = e => { if (e.key === "Enter") sendLink(); };
+    } else {
+      const d = cloud.defaults;
+      el.innerHTML = `${close}<h4>Your account</h4><p>Signed in as <b>${esc(user.email)}</b></p>
+        <button class="btn main" id="acctSave">Save current filters as my defaults</button>
+        ${d ? `<button class="btn" id="acctUse">Go back to my defaults</button><p>Defaults saved ${esc(new Date(d.savedAt).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" }))}</p>` : '<p>No defaults saved yet.</p>'}
+        ${acctMsg}<button class="btn" id="acctOut">Sign out</button>`;
+      $("acctSave").onclick = async () => {
+        cloud = Object.assign({}, cloud, { defaults: { filters: prefs.filters, savedAt: new Date().toISOString() } });
+        const err = await saveCloud();
+        acctMsg = err ? `<p class="err">Couldn't save: ${esc(err.message)}</p>` : '<p class="ok">✓ Saved. The map will open like this for you.</p>';
+        renderAcct();
+      };
+      if (d) $("acctUse").onclick = () => useDefaults(true);
+      $("acctOut").onclick = async () => { await sb.auth.signOut(); acctMsg = ""; };
+    }
+    $("acctX").onclick = () => { el.classList.remove("open"); acctMsg = ""; };
+  }
+  async function sendLink() {
+    const email = $("acctEmail").value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { acctMsg = '<p class="err">Please enter a valid email address.</p>'; renderAcct(); return; }
+    $("acctSend").disabled = true; $("acctSend").textContent = "Sending…";
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+    acctMsg = error ? `<p class="err">${esc(error.message)}</p>` : `<p class="ok">✓ Check your email (${esc(email)}) and tap the link to sign in.</p>`;
+    renderAcct(); if (!error) $("acctEmail").value = email;
+  }
+  $("acct").onclick = () => { renderAcct(); $("acctPanel").classList.toggle("open"); };
+
   // ---------- branding (Admin → Branding) ----------
   function applyBranding(b) {
     b = Object.assign({ name: "Atlantis Transport", colour: "#0b2545", logo: "" }, b || {});
@@ -646,7 +741,8 @@
 
   // ---------- start ----------
   (async function start() {
-    fetch("site.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(applyBranding).catch(() => {});
+    fetch("site.json?v=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
+      .then(j => { applyBranding(j); initAuth(j && j.auth); }).catch(() => {});
     fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(r => r.ok ? r.json() : null).then(t => {
       if (!t || !window.topojson) return;
       const uk = topojson.feature(t, t.objects.countries).features.find(f => f.id === "826");
