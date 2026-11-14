@@ -82,6 +82,8 @@
     <h2>2. Choose the file</h2>
     <label class="file" id="ffLabel"><input type="file" id="ffFile" accept=".csv,text/csv">
       <b>Fuel Finder CSV</b><br><span class="muted" id="ffName">Tap to choose the UpdatedFuelPrice-….csv file</span></label>
+    <label class="file" id="evLabel" style="margin-top:8px"><input type="file" id="evFile" accept=".json,application/json">
+      <b>EV charge points</b> <span class="muted">(optional)</span><br><span class="muted" id="evName">ev.json – made by Claude from Radius e-route when you ask it to update everything</span></label>
   </section>
 
   </div>
@@ -181,7 +183,7 @@
   const OWNER = "harries2000-prog", REPO = "uk-fuel-map", BRANCH = "main";
   const KEY_LS = "fuelmap-admin-key";
   const $ = id => document.getElementById(id);
-  let ffFile = null;
+  let ffFile = null, evFile = null;
   const DEFAULT_CARDS = ["UK Fuels", "Keyfuels", "FastFuels", "Esso National", "Shell CRT", "Shell Multifleet", "FuelGenie"];
   let cardIndex = { cards: DEFAULT_CARDS.map(n => ({ id: FuelMap.brandSlug(n), name: n })) }, cardChanges = {}, imgChanges = {}, surChanges = {}, cardsDirty = false, cardTarget = null;
   let logoIndex = {}, logoChanges = {}, brands = [], logoTarget = null;
@@ -193,7 +195,7 @@
   function refreshKeyUI() {
     const k = getKey();
     $("keyBox").hidden = !!k; $("forget").hidden = !k;
-    $("publish").disabled = !(ffFile || cardsDirty || provDirty || Object.keys(logoChanges).length);
+    $("publish").disabled = !(ffFile || evFile || cardsDirty || provDirty || Object.keys(logoChanges).length);
   }
 
   function pick(input, label, nameEl, setter) {
@@ -205,6 +207,7 @@
     });
   }
   pick($("ffFile"), $("ffLabel"), $("ffName"), f => ffFile = f);
+  pick($("evFile"), $("evLabel"), $("evName"), f => evFile = f);
   $("forget").onclick = () => { try { localStorage.removeItem(KEY_LS); } catch (e) {} refreshKeyUI(); };
 
   // ---- GitHub (used only as storage for the site) ----
@@ -249,6 +252,13 @@
     $("publish").disabled = true;
     try {
       const files = [], what = [];
+      if (evFile) {
+        const ev = JSON.parse(await evFile.text());
+        if (!ev || !Array.isArray(ev.points)) throw new Error(evFile.name + " isn't an EV charge point file.");
+        log("Found " + ev.points.length.toLocaleString() + " EV charge points.");
+        files.push({ path: "docs/data/ev.json", content: JSON.stringify(ev) });
+        what.push("EV charge points");
+      }
       if (ffFile) {
         log("Reading " + ffFile.name + "…");
         const data = FuelMap.convertFuelFinder(await ffFile.text(), ffFile.name);
@@ -322,6 +332,7 @@
       if (!files.length) throw new Error("Nothing to publish.");
       await commitFiles(key, files, "Update " + what.join(" + "));
       logoChanges = {}; renderBrands();
+      if (evFile) { evFile = null; $("evLabel").classList.remove("ready"); $("evName").textContent = "Published ✓"; }
       cardChanges = {}; imgChanges = {}; surChanges = {}; cardsDirty = false; renderCards();
       provLogo = {}; provSur = {}; provDrop = {}; provDirty = false; renderProv();
       try { localStorage.setItem(KEY_LS, key); } catch (e) {}
