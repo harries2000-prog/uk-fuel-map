@@ -35,15 +35,26 @@
   button { font:inherit; padding:7px 10px; border-radius:8px; border:1px solid #ccd; background:#fff; cursor:pointer; }
   button:hover { background:#f1f4f7; }
   #drawer .lh { font-size:12px; color:#556; margin:12px 0 5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
-  .chips { display:flex; gap:5px; flex-wrap:wrap; }
-  .chip { cursor:pointer; }
+  .chips { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+  .chip { cursor:pointer; --c:#111; }
+  .chip.c-unl { --c:#00843d; } .chip.c-adblue { --c:#0067b1; }
   .chip input { position:absolute; opacity:0; pointer-events:none; }
-  .chip span { display:inline-block; padding:5px 10px; border-radius:6px; font-size:13px; font-weight:700; letter-spacing:.3px;
-               text-transform:uppercase; border:2px solid #c9d0d8; color:#55606c; background:#fff; user-select:none; }
-  .chip.c-diesel input:checked + span { background:#111; border-color:#111; color:#fff; }
-  .chip.c-unl input:checked + span    { background:#00843d; border-color:#00843d; color:#fff; }
-  .chip.c-adblue input:checked + span { background:#0067b1; border-color:#0067b1; color:#fff; text-transform:none; }
-  .chip.c-adblue span { text-transform:none; }
+  .chip span { display:flex; align-items:center; justify-content:center; gap:5px; padding:7px 4px; border-radius:8px; font-size:13px;
+               font-weight:700; border:2px solid var(--c); color:var(--c); background:#fff; user-select:none; white-space:nowrap; }
+  .chip span svg { width:16px; height:16px; flex:none; }
+  .chip input:checked + span { background:var(--c); color:#fff; box-shadow:0 1px 3px #0003; }
+  .chip input:focus-visible + span { outline:2px solid #1a73e8; outline-offset:2px; }
+  .seg { display:grid; grid-template-columns:repeat(3, 1fr); border:2px solid #c9d0d8; border-radius:8px; overflow:hidden; }
+  .seg label { cursor:pointer; }
+  .seg input { position:absolute; opacity:0; pointer-events:none; }
+  .seg span { display:block; text-align:center; padding:6px 2px; font-size:12px; font-weight:600; color:#55606c; background:#fff; }
+  .seg label + label span { border-left:1px solid #dde3ea; }
+  .seg input:checked + span { background:var(--brand,#0b2545); color:var(--brand-ink,#fff); }
+  #cbyNote { font-size:12px; color:#6b7684; margin-top:5px; min-height:0; }
+  #cbyNote b { color:#9a4a00; }
+  #grad { margin-top:8px; }
+  #grad .gbar { height:10px; border-radius:5px; background:linear-gradient(90deg, hsl(120 70% 40%), hsl(60 85% 45%), hsl(0 70% 48%)); }
+  #grad .gl { display:flex; justify-content:space-between; font-size:12px; color:#445; margin-top:3px; font-variant-numeric:tabular-nums; }
   .key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:#445; margin-top:8px; }
   .key span { display:inline-flex; align-items:center; gap:4px; }
   .key span[hidden] { display:none; }
@@ -129,7 +140,7 @@
     #status { left:8px; right:8px; max-width:none; }
     #drawer { font-size:13px; }
     #drawer.open + #scrim { display:block; }
-    .chip span { padding:4px 8px; font-size:12px; }
+    .chip span { padding:6px 3px; font-size:12px; gap:3px; }
     .leaflet-popup-content { margin:9px 11px; }
     .pop h3 { font-size:14px; }
     .pop .sub { font-size:11px; margin-bottom:4px; }
@@ -165,10 +176,18 @@
   <div class="dhead">Filters<button id="closeMenu" aria-label="Close">✕</button></div>
   <div class="lh">Fuel <span class="hint">– stations with any ticked</span></div>
   <div class="chips">
-    <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span>Diesel</span></label>
-    <label class="chip c-unl"><input type="checkbox" data-fuel="unleaded"><span>Unleaded</span></label>
-    <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span>AdBlue</span></label>
+    <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Diesel</span></label>
+    <label class="chip c-unl"><input type="checkbox" data-fuel="unleaded"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Unleaded</span></label>
+    <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z"/></svg>AdBlue</span></label>
   </div>
+  <div class="lh">Colour pumps by</div>
+  <div class="seg" id="colourBy">
+    <label><input type="radio" name="cby" value="card" checked><span>Fuel card</span></label>
+    <label><input type="radio" name="cby" value="price"><span>Pump price</span></label>
+    <label><input type="radio" name="cby" value="sur"><span>Surcharge</span></label>
+  </div>
+  <div id="cbyNote"></div>
+  <div id="grad" hidden><div class="gbar"></div><div class="gl"><span id="gMin"></span><span id="gMax"></span></div></div>
   <div class="lh">Fuel cards <span class="hint">– stations taking any ticked</span></div>
   <div id="cardChips" class="cchips"></div>
   <div id="cardOpts" hidden>
@@ -275,7 +294,7 @@
     const id = e.target.dataset.card; if (!id) return;
     if (e.target.checked) selCards.add(id); else selCards.delete(id);
     e.target.closest(".cchip").classList.toggle("on", e.target.checked);
-    draw();
+    enforceSingle(e.target); draw();
   });
   const chosenCards = () => cards.filter(c => selCards.has(c.id) && c.rows.length);
   function catFor(s, sel) {
@@ -311,6 +330,53 @@
     el.style.display = "block"; $("closeUn").onclick = () => el.style.display = "none";
   }
 
+  // ---------- colour by: fuel card (default) / pump price / card surcharge ----------
+  const cby = () => (document.querySelector('input[name="cby"]:checked') || {}).value || "card";
+  const PRICE_KEYS = { diesel: ["B7S", "B7_STANDARD", "B7"], unleaded: ["E10"] };   // standard grades only
+  function priceOf(s, fuel) { for (const k of PRICE_KEYS[fuel] || []) if (s.p && s.p[k] != null) return s.p[k]; return null; }
+  function surOf(s, card) {
+    const r = card && s.cards[card.id]; if (!r || !r.sur) return null;
+    let v = parseFloat(String(r.sur).replace(/[^0-9.\-]/g, "")); if (!isFinite(v)) return null;
+    if (/£/.test(r.sur) && v < 1) v *= 100;   // £0.02 → 2p
+    return v;
+  }
+  const gradCol = t => `hsl(${Math.round(120 * (1 - t))} ${t > .35 && t < .65 ? 85 : 72}% ${t > .35 && t < .65 ? 44 : 41}%)`;
+  // only one fuel (price mode) or one card (surcharge mode) at a time
+  function enforceSingle(changed) {
+    const mode = cby();
+    if (mode === "price") {
+      const on = [...document.querySelectorAll("[data-fuel]")].filter(c => c.checked);
+      const keep = changed && changed.dataset.fuel && changed.checked ? changed : on[0];
+      on.forEach(c => { if (c !== keep) c.checked = false; });
+    }
+    if (mode === "sur") {
+      const on = [...selCards].filter(id => (cards.find(c => c.id === id) || {}).rows);
+      const keep = changed && changed.dataset.card && changed.checked ? changed.dataset.card : on[0];
+      selCards = new Set(keep ? [keep] : []);
+      document.querySelectorAll("[data-card]").forEach(c => { c.checked = selCards.has(c.dataset.card); c.closest(".cchip").classList.toggle("on", c.checked); });
+    }
+  }
+  let gradInfo = null;   // {mode, fuel|card} while a gradient is showing
+  function recolour() {
+    if (!gradInfo) return;
+    const b = map.getBounds().pad(0.05), vals = [];
+    for (const m of markers) {
+      if (!b.contains(m.getLatLng())) { m._v = undefined; continue; }
+      m._v = gradInfo.mode === "price" ? priceOf(m.s, gradInfo.fuel) : surOf(m.s, gradInfo.card);
+      if (m._v != null) vals.push(m._v);
+    }
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    for (const m of markers) {
+      if (m._v === undefined) continue;
+      const c = m._v == null ? COLORS.grey : gradCol(hi > lo ? (m._v - lo) / (hi - lo) : 0);
+      if (m.options.fillColor !== c) m.setStyle({ fillColor: c });
+    }
+    const fmt = v => v.toFixed(1) + "p";
+    $("grad").hidden = !vals.length;
+    if (vals.length) { $("gMin").textContent = "Cheapest " + fmt(lo); $("gMax").textContent = "Dearest " + fmt(hi); }
+  }
+  map.on("moveend", recolour);
+
   // ---------- drawing ----------
   function draw() {
     layer.clearLayers(); markers = [];
@@ -324,6 +390,19 @@
     const list = stations.slice().sort((a, b) => order[a.cat] - order[b.cat]);
     stations.forEach(s => s.cat = catFor(s, sel));
     list.sort((a, b) => order[a.cat] - order[b.cat]);
+    // colour mode
+    const mode = cby(), fuelOn = Object.keys(want).filter(k => want[k]);
+    gradInfo = null; let note = "";
+    if (mode === "price") {
+      if (fuelOn.length !== 1) note = "Pick <b>one fuel</b> above to colour by its price.";
+      else if (fuelOn[0] === "adblue") note = "<b>AdBlue prices aren't in the Fuel Finder data</b> – pick Diesel or Unleaded.";
+      else { gradInfo = { mode, fuel: fuelOn[0] }; note = `Standard ${fuelOn[0]} price, for the stations in view. Green = cheapest.`; }
+    } else if (mode === "sur") {
+      if (sel.length !== 1) note = "Pick <b>one fuel card</b> below to colour by its surcharge.";
+      else { gradInfo = { mode, card: sel[0] }; note = `${esc(sel[0].name)} surcharge, for the stations in view. Green = lowest. Grey = no surcharge listed.`; }
+    }
+    $("cbyNote").innerHTML = note; $("grad").hidden = true;
+    $("key").style.display = gradInfo ? "none" : "";
     for (const s of list) {
       counts[s.cat]++;
       if (s.cat === "grey" && !showClosed) continue;
@@ -331,6 +410,7 @@
       if (anyFuel && !((want.diesel && hasDiesel(s)) || (want.unleaded && hasUnleaded(s)) ||
                        (want.adblue && (s.am || []).includes("adblue_pumps")))) continue;
       if (onlyCard && !sel.some(c => s.cards[c.id])) continue;
+      if (gradInfo && gradInfo.mode === "sur" && !s.cards[gradInfo.card.id]) continue;
       if (hideNoHgv && s.cat === "red") continue;
       const m = new PumpMarker([s.y, s.x], {
         renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: COLORS[s.cat]
@@ -340,7 +420,8 @@
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
     updateKey(sel);
-    try { localStorage.setItem("fuelmap-filters", JSON.stringify({ want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed })); } catch (e) {}
+    recolour();
+    savePrefs({ filters: { want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed, colourBy: mode } });
     const nActive = Object.values(want).filter(Boolean).length + sel.length + (hideNoHgv ? 1 : 0);
     $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
   }
@@ -505,16 +586,30 @@
       }));
     } catch (e) { cards = []; }
   }
-  // remember filter choices on this device
+  // ---------- preferences ----------
+  // One object holds everything a user can save: { filters:{...}, ...more later }.
+  // Kept on this device, and copied to the user's account when they're signed in.
+  const PREFS_LS = "fuelmap-prefs";
+  let prefs = {};
   try {
-    const f = JSON.parse(localStorage.getItem("fuelmap-filters") || "null");
-    if (f) {
-      document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
-      selCards = new Set(f.cards || (f.card ? [f.card] : []));
-      $("showOthers").checked = !!f.showOthers; $("hideNoHgv").checked = !!f.hideNoHgv;
-      $("showClosed").checked = !!f.showClosed;
-    }
-  } catch (e) {}
+    prefs = JSON.parse(localStorage.getItem(PREFS_LS) || "null") || {};
+    if (!prefs.filters) { const old = JSON.parse(localStorage.getItem("fuelmap-filters") || "null"); if (old) prefs.filters = old; }
+  } catch (e) { prefs = {}; }
+  const prefsHooks = [];   // called after every save, e.g. to sync to the user's account
+  function savePrefs(part) {
+    prefs = Object.assign({}, prefs, part);
+    try { localStorage.setItem(PREFS_LS, JSON.stringify(prefs)); } catch (e) {}
+    prefsHooks.forEach(fn => fn(prefs));
+  }
+  function applyFilters(f) {
+    if (!f) return;
+    document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
+    const cb = document.querySelector(`input[name="cby"][value="${f.colourBy || "card"}"]`); if (cb) cb.checked = true;
+    selCards = new Set(f.cards || (f.card ? [f.card] : []));
+    $("showOthers").checked = !!f.showOthers; $("hideNoHgv").checked = !!f.hideNoHgv;
+    $("showClosed").checked = !!f.showClosed;
+  }
+  applyFilters(prefs.filters);
   // ☰ menu: open by default on big screens, closed on phones; remembers your choice
   function setMenu(open, remember) {
     $("drawer").classList.toggle("open", open);
@@ -527,7 +622,8 @@
   $("closeMenu").onclick = () => setMenu(false, true);
   $("scrim").onclick = () => setMenu(false, false);
   map.on("click", () => { if (SMALL) setMenu(false, false); });
-  document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
+  document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", e => { enforceSingle(e.target); draw(); }));
+  document.querySelectorAll('input[name="cby"]').forEach(r => r.addEventListener("change", () => { enforceSingle(null); renderCardChips(); draw(); }));
   $("showOthers").addEventListener("change", draw);
   $("hideNoHgv").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
