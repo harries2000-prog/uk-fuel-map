@@ -213,6 +213,7 @@
   .vform .full { grid-column:1 / -1; }
   .vform .est { grid-column:1 / -1; background:#fff8d6; border-radius:8px; padding:7px 9px; font-size:13px; }
   #settings .primary { background:#000; color:#ffe058; border-color:#000; font-weight:700; }
+  #stBackup .brow2 { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; } #stBackup .msg { font-size:13px; margin-top:6px; }
   /* ---- phones ---- */
   @media (max-width:600px) {
     :root { --bar:50px; }
@@ -256,9 +257,10 @@
 <div id="map"></div>
 <div id="settings" hidden><div class="sbox">
   <div class="shead"><b>My settings</b><small>Saved on this device only</small><button id="closeSettings" aria-label="Close">✕</button></div>
-  <div class="stabs"><button data-st="prices" class="on">Fuel card prices</button><button data-st="veh">My vehicles</button></div>
+  <div class="stabs"><button data-st="prices" class="on">Fuel card prices</button><button data-st="veh">My vehicles</button><button data-st="backup">Export / import</button></div>
   <div class="spane" id="stPrices"></div>
   <div class="spane" id="stVeh" hidden></div>
+  <div class="spane" id="stBackup" hidden></div>
 </div></div>
 <div id="status" class="panel"></div>
 
@@ -867,8 +869,45 @@
   function openSettings(tab) { if (tab) stTab = tab; $("settings").hidden = false; renderSettings(); }
   function renderSettings() {
     document.querySelectorAll("#settings .stabs button").forEach(b => b.classList.toggle("on", b.dataset.st === stTab));
-    $("stPrices").hidden = stTab !== "prices"; $("stVeh").hidden = stTab !== "veh";
-    if (stTab === "prices") renderPricesTab(); else renderVehTab();
+    $("stPrices").hidden = stTab !== "prices"; $("stVeh").hidden = stTab !== "veh"; $("stBackup").hidden = stTab !== "backup";
+    if (stTab === "prices") renderPricesTab(); else if (stTab === "veh") renderVehTab(); else renderBackupTab();
+  }
+  // ---- Export / import: move your settings (card prices, hidden cards, vehicles, filters, provider) to another device ----
+  function renderBackupTab() {
+    const nV = (prefs.vehicles || []).length, nP = Object.keys(cardPrices()).length;
+    $("stBackup").innerHTML = `<p class="note">Your settings are saved in this browser only. Export them to a file to keep a copy, or to move them to
+      another phone or computer – then open the map there, come to this tab and import the file.</p>
+      <div class="setrow"><b>Export</b><div class="note" style="margin:4px 0">Saves your card prices (${nP}), hidden cards, vehicles (${nV}), card provider and filter choices.</div>
+        <div class="brow2"><button class="primary" id="bkExport">⬇ Export my settings</button></div></div>
+      <div class="setrow"><b>Import</b><div class="note" style="margin:4px 0">Replaces the settings on this device with the ones in the file.</div>
+        <div class="brow2"><input type="file" id="bkFile" accept=".json,application/json"><button id="bkImport" disabled>Import</button></div>
+        <div class="msg" id="bkMsg"></div></div>`;
+    $("bkExport").onclick = () => {
+      let provOpen = null; try { provOpen = localStorage.getItem("fuelmap-prov-open"); } catch (e) {}
+      const data = { app: "atlantis-fuel-map", kind: "settings", version: 1, exported: new Date().toISOString(), prefs, provOpen };
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
+      a.download = "fuel-map-settings-" + todayStr() + ".json";
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    };
+    let picked = null;
+    $("bkFile").onchange = async () => {
+      picked = null; $("bkImport").disabled = true; const f = $("bkFile").files[0]; if (!f) return;
+      try {
+        const d = JSON.parse(await f.text());
+        if (!d || d.app !== "atlantis-fuel-map" || d.kind !== "settings" || typeof d.prefs !== "object") throw new Error();
+        picked = d; $("bkImport").disabled = false;
+        $("bkMsg").textContent = `File from ${/^\d{4}-\d\d-\d\d/.test(String(d.exported)) ? niceDate(String(d.exported).slice(0, 10)) : "an earlier export"}: ${Object.keys(d.prefs.cardPrices || {}).length} card prices, ${(d.prefs.vehicles || []).length} vehicles. Press Import to use it.`;
+      } catch (e) { $("bkMsg").textContent = "That isn't a fuel map settings file."; }
+    };
+    $("bkImport").onclick = () => {
+      if (!picked) return;
+      try {
+        localStorage.setItem(PREFS_LS, JSON.stringify(picked.prefs));
+        if (picked.provOpen != null) localStorage.setItem("fuelmap-prov-open", picked.provOpen); else localStorage.removeItem("fuelmap-prov-open");
+      } catch (e) { $("bkMsg").textContent = "Couldn't save the settings in this browser."; return; }
+      $("bkMsg").textContent = "Imported – reloading…"; setTimeout(() => location.reload(), 600);
+    };
   }
   function renderPricesTab() {
     const cp = cardPrices(), hid = hiddenCards(), list = cards.filter(hasList), t = todayStr();
