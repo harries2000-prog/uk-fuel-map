@@ -47,11 +47,12 @@
   .chip span svg { width:16px; height:16px; flex:none; }
   .chip input:checked + span { background:var(--c); color:#fff; box-shadow:0 1px 3px #0003; }
   .chip input:focus-visible + span { outline:2px solid #1a73e8; outline-offset:2px; }
-  .seg { display:grid; grid-template-columns:repeat(3, 1fr); border:2px solid #c9d0d8; border-radius:8px; overflow:hidden; }
+  .seg { display:grid; grid-template-columns:repeat(2, 1fr); border:2px solid #c9d0d8; border-radius:8px; overflow:hidden; }
   .seg label { cursor:pointer; }
   .seg input { position:absolute; opacity:0; pointer-events:none; }
   .seg span { display:block; text-align:center; padding:6px 2px; font-size:12px; font-weight:600; color:#55606c; background:#fff; }
   .seg label + label span { border-left:1px solid #dde3ea; }
+  .seg input:disabled + span { color:#b8bfc7; background:#f2f4f6; cursor:not-allowed; }
   .seg input:checked + span { background:var(--brand,#0b2545); color:var(--brand-ink,#fff); }
   #cbyNote { font-size:12px; color:#6b7684; margin-top:5px; min-height:0; }
   #cbyNote b { color:#9a4a00; }
@@ -202,8 +203,7 @@
   </div>
   <div class="lh">Colour pumps by</div>
   <div class="seg" id="colourBy">
-    <label><input type="radio" name="cby" value="card" checked><span>Fuel card</span></label>
-    <label><input type="radio" name="cby" value="price"><span>Pump price</span></label>
+    <label><input type="radio" name="cby" value="price" checked><span>Pump price</span></label>
     <label><input type="radio" name="cby" value="sur"><span>Surcharge</span></label>
   </div>
   <div id="cbyNote"></div>
@@ -317,7 +317,7 @@
     const id = e.target.dataset.card; if (!id) return;
     if (e.target.checked) selCards.add(id); else selCards.delete(id);
     e.target.closest(".cchip").classList.toggle("on", e.target.checked);
-    enforceSingle(e.target); draw();
+    draw();
   });
   // postcode → stations index (built once)
   let _pcIdx = null;
@@ -394,8 +394,9 @@
 
   const exVat = p => (p / 1.2).toFixed(1) + "p";   // pump prices include 20% VAT
 
-  // ---------- colour by: fuel card (default) / pump price / card surcharge ----------
-  const cby = () => (document.querySelector('input[name="cby"]:checked') || {}).value || "card";
+  // ---------- colour by: pump price (default) / card surcharge ----------
+  // cbyPref = what the user picked; the mode actually used falls back when that isn't possible
+  let cbyPref = "price";
   const PRICE_KEYS = { diesel: ["B7S", "B7_STANDARD", "B7"], unleaded: ["E10"] };   // standard grades only
   function priceOf(s, fuel) { for (const k of PRICE_KEYS[fuel] || []) if (s.p && s.p[k] != null) return s.p[k]; return null; }
   function surOf(s, card) {
@@ -406,21 +407,6 @@
     return v;
   }
   const gradCol = t => `hsl(${Math.round(120 * (1 - t))} ${t > .35 && t < .65 ? 85 : 72}% ${t > .35 && t < .65 ? 44 : 41}%)`;
-  // only one fuel (price mode) or one card (surcharge mode) at a time
-  function enforceSingle(changed) {
-    const mode = cby();
-    if (mode === "price") {
-      const on = [...document.querySelectorAll("[data-fuel]")].filter(c => c.checked);
-      const keep = changed && changed.dataset.fuel && changed.checked ? changed : on[0];
-      on.forEach(c => { if (c !== keep) c.checked = false; });
-    }
-    if (mode === "sur") {
-      const on = [...selCards].filter(id => (cards.find(c => c.id === id) || {}).rows);
-      const keep = changed && changed.dataset.card && changed.checked ? changed.dataset.card : on[0];
-      selCards = new Set(keep ? [keep] : []);
-      document.querySelectorAll("[data-card]").forEach(c => { c.checked = selCards.has(c.dataset.card); c.closest(".cchip").classList.toggle("on", c.checked); });
-    }
-  }
   let gradInfo = null;   // {mode, fuel|card} while a gradient is showing
   function recolour() {
     if (!gradInfo) return;
@@ -479,18 +465,21 @@
     stations.forEach(s => s.cat = catFor(s, sel));
     list.sort((a, b) => order[a.cat] - order[b.cat]);
     // colour mode
-    const mode = cby(), fuelOn = Object.keys(want).filter(k => want[k]);
+    const fuelOn = Object.keys(want).filter(k => want[k]);
+    // pump price needs exactly one of Diesel / Unleaded (no AdBlue prices); surcharge needs one card that has surcharge data
+    const priceFuels = fuelOn.filter(f => f !== "adblue");
+    const priceOk = priceFuels.length === 1, surOk = sel.length === 1 && (sel[0].surRows || []).length > 0;
+    const mode = cbyPref === "sur" && surOk ? "sur" : priceOk ? "price" : surOk ? "sur" : "none";
+    const rP = document.querySelector('input[name="cby"][value="price"]'), rS = document.querySelector('input[name="cby"][value="sur"]');
+    rP.disabled = !priceOk; rS.disabled = !surOk; rP.checked = mode === "price"; rS.checked = mode === "sur";
     gradInfo = null; let note = "";
-    if (mode === "price") {
-      if (fuelOn.length !== 1) note = "Pick <b>one fuel</b> above to colour by its price.";
-      else if (fuelOn[0] === "adblue") note = "";   // no AdBlue prices in the Fuel Finder data
-      else { gradInfo = { mode, fuel: fuelOn[0] }; note = `Standard ${fuelOn[0]} price, for the stations in view. Green = cheapest.`; }
-    } else if (mode === "sur") {
-      if (sel.length !== 1) note = "Pick <b>one fuel card</b> below to colour by its surcharge.";
-      else { gradInfo = { mode, card: sel[0] }; note = `${esc(sel[0].name)} surcharge, for the stations in view. Green = no surcharge, then amber → red for the highest.`; }
-    }
+    if (mode === "price") { gradInfo = { mode, fuel: priceFuels[0] }; note = `Standard ${priceFuels[0]} price, for the stations in view. Green = cheapest.`; }
+    else if (mode === "sur") { gradInfo = { mode, card: sel[0] }; note = `${esc(sel[0].name)} surcharge, for the stations in view. Green = no surcharge, then amber → red for the highest.`; }
+    else note = "Pick <b>Diesel or Unleaded</b> (just one) to colour by pump price" +
+      (sel.length === 1 ? ` – ${esc(sel[0].name)} has no surcharge data.` : sel.length > 1 ? ", or one fuel card to colour by surcharge." : ".");
     $("cbyNote").innerHTML = note; $("grad").hidden = true;
     $("key").style.display = gradInfo ? "none" : "";
+    let shown = 0;
     for (const s of list) {
       counts[s.cat]++;
       if (s.cat === "grey" && !showClosed) continue;
@@ -501,15 +490,18 @@
       if (gradInfo && gradInfo.mode === "sur" && !s.cards[gradInfo.card.id]) continue;
       if (hideNoHgv && s.cat === "amber") continue;
       const m = new PumpMarker([s.y, s.x], {
-        renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: COLORS[s.cat]
+        renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: s.cat === "grey" ? COLORS.grey : COLORS.amber
       });
+      if (s.cat !== "grey") shown++;
       m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 250, minWidth: 210, autoPanPadding: [8, 60] } : { maxWidth: 320, minWidth: 270 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
     updateKey(sel);
+    // no price/surcharge colours possible: every open station is amber
+    $("k-green").hidden = true; $("k-red").hidden = true; $("kl-amber").textContent = "Fuel station"; $("c-amber").textContent = shown.toLocaleString();
     recolour();
-    savePrefs({ filters: { want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed, colourBy: mode } });
+    savePrefs({ filters: { want, cards: [...selCards], showOthers: $("showOthers").checked, hideNoHgv: $("hideNoHgv").checked, showClosed, colourBy: cbyPref } });
     const nActive = Object.values(want).filter(Boolean).length + sel.length + (hideNoHgv ? 1 : 0);
     $("nFilters").hidden = !nActive; $("nFilters").textContent = nActive;
   }
@@ -695,7 +687,7 @@
   function applyFilters(f) {
     if (!f) return;
     document.querySelectorAll("[data-fuel]").forEach(c => c.checked = !!(f.want || {})[c.dataset.fuel]);
-    const cb = document.querySelector(`input[name="cby"][value="${f.colourBy || "card"}"]`); if (cb) cb.checked = true;
+    cbyPref = f.colourBy === "sur" ? "sur" : "price";
     selCards = new Set(f.cards || (f.card ? [f.card] : []));
     $("showOthers").checked = !!f.showOthers; $("hideNoHgv").checked = !!f.hideNoHgv;
     $("showClosed").checked = !!f.showClosed;
@@ -708,7 +700,7 @@
     if (!["fuel", "cards", "colour", "nohgv", "others"].some(k => q.has(k))) return;
     const list = k => (q.get(k) || "").split(",").map(s => s.trim()).filter(Boolean);
     const want = {}; list("fuel").forEach(f => want[f] = true);
-    applyFilters({ want, cards: list("cards"), colourBy: q.get("colour") || "card",
+    applyFilters({ want, cards: list("cards"), colourBy: q.get("colour") || "price",
                    hideNoHgv: q.get("nohgv") === "1", showOthers: q.get("others") === "1", showClosed: false });
   })();
   // ☰ menu: open by default on big screens, closed on phones; remembers your choice
@@ -723,8 +715,8 @@
   $("closeMenu").onclick = () => setMenu(false, true);
   $("scrim").onclick = () => setMenu(false, false);
   map.on("click", () => { if (SMALL) setMenu(false, false); });
-  document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", e => { enforceSingle(e.target); draw(); }));
-  document.querySelectorAll('input[name="cby"]').forEach(r => r.addEventListener("change", () => { enforceSingle(null); renderCardChips(); draw(); }));
+  document.querySelectorAll("[data-fuel]").forEach(c => c.addEventListener("change", draw));
+  document.querySelectorAll('input[name="cby"]').forEach(r => r.addEventListener("change", () => { cbyPref = r.value; renderCardChips(); draw(); }));
   $("showOthers").addEventListener("change", draw);
   $("hideNoHgv").addEventListener("change", draw);
   $("showClosed").addEventListener("change", draw);
