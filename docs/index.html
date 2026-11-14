@@ -10,7 +10,9 @@
   :root { --green:#1e9e4a; --amber:#f0a020; --red:#d63a2f; --grey:#8a8f98; --ink:#1d232b; --panel:#ffffffee;
           --brand:#0b2545; --brand-ink:#ffffff; --bar:54px; }
   html, body { margin:0; height:100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:var(--ink); }
-  #map { position:absolute; top:var(--bar); left:0; right:0; bottom:0; background:#dfe6ec; }
+  #map { position:absolute; top:var(--bar); left:0; right:0; bottom:0; background:#e4e6e8; }
+  /* grey background map so the coloured pumps stand out */
+  #map .leaflet-tile-pane { filter:grayscale(1) brightness(1.04) contrast(.92); }
   #bar { position:absolute; top:0; left:0; right:0; height:var(--bar); box-sizing:border-box; z-index:1003; display:flex; align-items:center;
          gap:8px; padding:8px 10px; background:var(--brand); color:var(--brand-ink); box-shadow:0 2px 8px #0004; }
   #menuBtn { position:relative; flex:none; width:40px; height:38px; padding:0; font-size:20px; line-height:1; background:transparent;
@@ -685,6 +687,16 @@
     $("showClosed").checked = !!f.showClosed;
   }
   applyFilters(prefs.filters);
+  // Ready-made links (Admin → Share links): ?fuel=diesel&cards=uk-fuels,fastfuels&colour=price&nohgv=1&others=1
+  // A link sets the options when the map opens; the menu can still change them afterwards.
+  (function linkOptions() {
+    const q = new URLSearchParams(location.search);
+    if (!["fuel", "cards", "colour", "nohgv", "others"].some(k => q.has(k))) return;
+    const list = k => (q.get(k) || "").split(",").map(s => s.trim()).filter(Boolean);
+    const want = {}; list("fuel").forEach(f => want[f] = true);
+    applyFilters({ want, cards: list("cards"), colourBy: q.get("colour") || "card",
+                   hideNoHgv: q.get("nohgv") === "1", showOthers: q.get("others") === "1", showClosed: false });
+  })();
   // ☰ menu: open by default on big screens, closed on phones; remembers your choice
   function setMenu(open, remember) {
     $("drawer").classList.toggle("open", open);
