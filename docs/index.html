@@ -344,6 +344,8 @@
       const hit = s.cards[card.id] || (s.cards[card.id] = { hgv: null, fromSur: true });
       hit.sur = (+r.ppl.toFixed(2)) + "p"; hit.group = r.group;
     }
+    // with a surcharge list, any other site taking the card has no surcharge
+    if ((card.surRows || []).length) for (const s of stations) { const h = s.cards[card.id]; if (h && !h.sur) h.noSur = true; }
   }
   const hasList = c => c.rows.length > 0 || (c.surRows || []).length > 0;
   const chosenCards = () => cards.filter(c => selCards.has(c.id) && hasList(c));
@@ -559,7 +561,7 @@
       const r = s.cards[c.id];
       return `<div class="crow${isSel(c) ? " sel" : ""}"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}${r.group ? `<small class="cgrp">${esc(r.group)}</small>` : ""}</span>` +
              `${r.hgv === false ? '<span class="tag r">No HGVs</span>' : r.hgv === true ? '<span class="tag g">HGV OK</span>' : ""}` +
-             `<span class="csur">${r.sur ? esc(r.sur) : "✓"}</span></div>`;
+             `<span class="csur">${r.sur ? esc(r.sur) : r.noSur ? "No surcharge" : "✓"}</span></div>`;
     }).join("");
     cardHtml = sel.filter(c => !s.cards[c.id]).map(c => `<div class="crow no"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}</span><span class="csur">not accepted</span></div>`).join("") + cardHtml;
     const cardsBox = cardHtml ? `<div class="cards"><div class="ch">Fuel cards${accepted.some(c => s.cards[c.id].sur) ? '<span>surcharge</span>' : ""}</div>${cardHtml}</div>` : "";
