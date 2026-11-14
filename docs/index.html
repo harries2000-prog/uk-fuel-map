@@ -169,11 +169,9 @@
   .cchip.on { border-color:var(--brand); background:#fff8d6; }
   .cchip.on::after { content:"✓"; position:absolute; top:2px; right:5px; width:16px; height:16px; line-height:16px; text-align:center; border-radius:50%; font-size:11px; font-weight:800; color:var(--accent); background:var(--brand); }
   .cchip.off { opacity:.45; cursor:default; }
-  /* my settings / vehicles / cost per mile */
+  /* my settings / cost per mile */
   #mySettings { width:100%; margin-top:6px; font-weight:700; background:#fff; border:2px solid #000; }
   #mySettings:hover { background:#fff8d6; }
-  #vehBox select { width:100%; padding:7px; border-radius:8px; border:1px solid #ccd; font:inherit; }
-  #vehInfo { font-size:12px; color:#556; margin-top:4px; }
   #cardHint { font-size:12px; color:#6b7684; margin-top:5px; }
   .cchip .cp { font-size:10.5px; color:#000; background:#ffe058; border-radius:4px; padding:0 4px; font-weight:700; }
   .cpm { background:#000; color:#fff; border-radius:6px; padding:5px 8px; margin:4px 0; font-size:13px; }
@@ -199,19 +197,10 @@
   .setrow .top .nm small { color:#6b7684; font-size:12px; } .setrow .top .nm small.exp { color:#b42318; }
   .setrow .top label { margin-left:auto; font-size:12.5px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
   .setrow .pin { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:7px; font-size:13px; }
-  .setrow input[type=number] { width:90px; } .setrow input, .vform input, .vform select { padding:6px 7px; border:1px solid #c5ccd5; border-radius:7px; font:inherit; font-size:14px; }
-  .setrow .lnk, .vrow .lnk { background:none; border:0; color:#000; text-decoration:underline; text-decoration-color:#e0b800; text-decoration-thickness:2px; padding:4px 2px; font-size:13px; }
+  .setrow input[type=number] { width:90px; } .setrow input { padding:6px 7px; border:1px solid #c5ccd5; border-radius:7px; font:inherit; font-size:14px; }
+  .setrow .lnk { background:none; border:0; color:#000; text-decoration:underline; text-decoration-color:#e0b800; text-decoration-thickness:2px; padding:4px 2px; font-size:13px; }
   .setrow textarea { width:100%; box-sizing:border-box; margin-top:6px; font:inherit; font-size:13px; padding:6px; border:1px solid #c5ccd5; border-radius:7px; }
   .setrow .pres { font-size:12.5px; margin-left:6px; }
-  .vrow { border:1px solid #e1e6ec; border-radius:10px; padding:8px 10px; margin:8px 0; font-size:13px; }
-  .vrow .vt { display:flex; align-items:center; gap:8px; } .vrow .reg { background:#ffe058; color:#000; font-weight:800; border-radius:4px; padding:2px 6px; letter-spacing:1px; border:1px solid #000; }
-  .vrow .vt .acts { margin-left:auto; display:flex; gap:4px; }
-  .vrow .vd { color:#445; margin-top:5px; line-height:1.5; }
-  .vrow .bad { color:#b42318; font-weight:700; } .vrow .ok { color:#1e7a3c; }
-  .vform { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
-  .vform label { display:flex; flex-direction:column; font-size:12px; font-weight:600; color:#445; gap:3px; }
-  .vform .full { grid-column:1 / -1; }
-  .vform .est { grid-column:1 / -1; background:#fff8d6; border-radius:8px; padding:7px 9px; font-size:13px; }
   #settings .primary { background:#000; color:#ffe058; border-color:#000; font-weight:700; }
   #stBackup .brow2 { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; } #stBackup .msg { font-size:13px; margin-top:6px; }
   /* ---- phones ---- */
@@ -257,7 +246,7 @@
 <div id="map"></div>
 <div id="settings" hidden><div class="sbox">
   <div class="shead"><b>My settings</b><small>Saved on this device only</small><button id="closeSettings" aria-label="Close">✕</button></div>
-  <div class="stabs"><button data-st="prices" class="on">Fuel card prices</button><button data-st="veh">My vehicles</button><button data-st="backup">Export / import</button></div>
+  <div class="stabs"><button data-st="prices" class="on">Fuel card prices</button><button data-st="veh">MPG</button><button data-st="backup">Export / import</button></div>
   <div class="spane" id="stPrices"></div>
   <div class="spane" id="stVeh" hidden></div>
   <div class="spane" id="stBackup" hidden></div>
@@ -274,7 +263,6 @@
     <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z"/></svg>AdBlue</span></label>
     <label class="chip c-ev"><input type="checkbox" data-fuel="electric"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>Electric</span></label>
   </div>
-  <div id="vehBox" hidden><div class="lh">My vehicle</div><select id="vehSel"></select><div id="vehInfo"></div></div>
   <div class="lh">Colour pumps by</div>
   <div class="seg" id="colourBy">
     <label><input type="radio" name="cby" value="price" checked><span>Pump price</span></label>
@@ -488,7 +476,7 @@
       $("gSteps").hidden = true;
       $("gNone").parentNode.hidden = true; $("grad").querySelector(".gbar").hidden = false;
       if (vals.length) {
-        const v = curVehicle(), mpg = v && vehFuelKey(v) === gradInfo.fuel ? vehMpg(v) : 0, pm = x => mpg ? `<br><small>≈ ${ppm(x, mpg).toFixed(1)}p/mile</small>` : "";
+        const mpg = gradInfo.fuel === "diesel" || gradInfo.fuel === "unleaded" ? myMpg() : 0, pm = x => mpg ? `<br><small>≈ ${ppm(x, mpg).toFixed(1)}p/mile</small>` : "";
         $("gMin").innerHTML = `Cheapest ${fmt(lo)} <small>(${exVat(lo)} ex VAT)</small>${pm(lo)}`; $("gMax").innerHTML = `Dearest ${fmt(hi)} <small>(${exVat(hi)} ex VAT)</small>${pm(hi)}`;
       }
     }
@@ -716,6 +704,9 @@
     prefs = JSON.parse(localStorage.getItem(PREFS_LS) || "null") || {};
     if (!prefs.filters) { const old = JSON.parse(localStorage.getItem("fuelmap-filters") || "null"); if (old) prefs.filters = old; }
   } catch (e) { prefs = {}; }
+  if (prefs.vehicles || prefs.vehicle != null) {   // vehicles were removed – keep just an MPG
+    delete prefs.vehicles; delete prefs.vehicle; try { localStorage.setItem(PREFS_LS, JSON.stringify(prefs)); } catch (e) {}
+  }
   function savePrefs(part) {
     prefs = Object.assign({}, prefs, part);
     try { localStorage.setItem(PREFS_LS, JSON.stringify(prefs)); } catch (e) {}
@@ -785,7 +776,7 @@
     $("c-ev").textContent = evPoints.length.toLocaleString();
   }
 
-  // ---------- My settings (this device only): weekly card prices, hidden cards, vehicles ----------
+  // ---------- My settings (this device only): weekly card prices, hidden cards, MPG ----------
   const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
   const addDays = (ymd, n) => { const t = new Date(ymd + "T12:00:00"); t.setDate(t.getDate() + n); return t.toISOString().slice(0, 10); };
   const niceDate = ymd => new Date(ymd + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
@@ -801,48 +792,20 @@
     const cp = cardPrices(), hid = hiddenCards();
     return cards.filter(c => hasList(c) && !hid.has(c.id) && cp[c.id]);
   }
-  // vehicles
-  const VTYPES = ["Car", "Van", "Rigid HGV", "Artic HGV", "Bus / coach", "Other"], VFUELS = ["Diesel", "Petrol", "Hybrid", "Electric"];
-  function estMpg(v) {   // rough, by weight first, then engine size; the user can type their own figure
-    if (v.fuel === "Electric") return 0;
-    const g = +v.gvw || 0, L_ = (+v.cc || 0) / 1000;
-    let m;
-    if (g >= 40000) m = 8.5; else if (g >= 32000) m = 9; else if (g >= 26000) m = 10; else if (g >= 18000) m = 11.5;
-    else if (g >= 12000) m = 13.5; else if (g >= 7500) m = 16; else if (g > 3500) m = 20;
-    else if (!g && v.type === "Artic HGV") m = 8.5; else if (!g && v.type === "Rigid HGV") m = 12; else if (!g && v.type === "Bus / coach") m = 9;
-    else if (v.type === "Van" || g > 2600) m = v.fuel === "Petrol" ? 27 : 36 - Math.max(0, (L_ || 2) - 2) * 4;
-    else m = v.fuel === "Petrol" ? 48 - Math.max(0, (L_ || 1.4) - 1.2) * 7 : 58 - Math.max(0, (L_ || 1.6) - 1.5) * 7;
-    if (v.fuel === "Hybrid") m *= 1.3;
-    return Math.max(5, Math.round(m * 10) / 10);
-  }
-  const vehMpg = v => +v.mpg > 0 ? +v.mpg : estMpg(v);
-  const vehicles = () => prefs.vehicles || [];
-  const curVehicle = () => vehicles().find(v => v.id === prefs.vehicle) || null;
-  const vehFuelKey = v => !v ? null : v.fuel === "Diesel" ? "diesel" : v.fuel === "Petrol" || v.fuel === "Hybrid" ? "unleaded" : v.fuel === "Electric" ? "electric" : null;
+  // cost per mile: the user's own MPG (My settings → MPG)
+  const myMpg = () => +prefs.mpg > 0 ? +prefs.mpg : 0;
   const ppm = (pence, mpg) => pence * 4.54609 / mpg;   // pence per litre → pence per mile
+  const cpmFuels = () => { const f = ["diesel", "unleaded"].filter(k => { const c = document.querySelector(`[data-fuel="${k}"]`); return c && c.checked; }); return f.length ? f : ["diesel"]; };
   function pumpCostLine(s) {
-    const v = curVehicle(); if (!v) return "";
-    const fk = vehFuelKey(v), mpg = vehMpg(v), p = fk === "diesel" || fk === "unleaded" ? priceOf(s, fk) : null;
-    if (!mpg || p == null) return "";
-    return `<div class="cpm"><b>${esc(v.reg)}</b> ≈ <b>${ppm(p, mpg).toFixed(1)}p/mile</b> at the pump <small>(${ppm(p / 1.2, mpg).toFixed(1)}p ex VAT · ${mpg} mpg${+v.mpg > 0 ? "" : " est."})</small></div>`;
+    const mpg = myMpg(); if (!mpg) return "";
+    return cpmFuels().map(fk => { const p = priceOf(s, fk); return p == null ? "" :
+      `<div class="cpm">${fk === "diesel" ? "Diesel" : "Unleaded"} ≈ <b>${ppm(p, mpg).toFixed(1)}p/mile</b> at the pump <small>(${ppm(p / 1.2, mpg).toFixed(1)}p ex VAT · ${mpg} mpg)</small></div>`; }).join("");
   }
   function cardPriceLine(c, r) {
     const cp = cardPrices()[c.id]; if (!cp) return "";
-    const sur = parseFloat(String(r.sur || "").replace(/[^0-9.]/g, "")) || 0, tot = cp.p + sur, v = curVehicle(), mpg = v ? vehMpg(v) : 0;
-    return `<small class="cyp">Your price ${cp.p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""} ex VAT${mpg && vehFuelKey(v) !== "electric" ? ` ≈ <b>${ppm(tot, mpg).toFixed(1)}p/mile</b>` : ""}</small>`;
+    const sur = parseFloat(String(r.sur || "").replace(/[^0-9.]/g, "")) || 0, tot = cp.p + sur, mpg = myMpg();
+    return `<small class="cyp">Your price ${cp.p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""} ex VAT${mpg ? ` ≈ <b>${ppm(tot, mpg).toFixed(1)}p/mile</b>` : ""}</small>`;
   }
-  function renderVehSel() {
-    const vs = vehicles(), v = curVehicle();
-    $("vehBox").hidden = !vs.length;
-    $("vehSel").innerHTML = '<option value="">No vehicle</option>' + vs.map(x => `<option value="${esc(x.id)}"${v && x.id === v.id ? " selected" : ""}>${esc(x.reg)}${x.name ? " – " + esc(x.name) : x.make ? " – " + esc(x.make + " " + (x.model || "")) : ""}</option>`).join("");
-    $("vehInfo").innerHTML = !v ? "Pick one to see the cost per mile at each station." : vehMpg(v) ? `≈ <b>${vehMpg(v)}</b> mpg${+v.mpg > 0 ? "" : " (estimate)"} – cost per mile shows in each station.` : "Electric – showing charge points.";
-  }
-  $("vehSel").addEventListener("change", () => {
-    savePrefs({ vehicle: $("vehSel").value });
-    const fk = vehFuelKey(curVehicle());
-    if (fk) document.querySelectorAll("[data-fuel]").forEach(c => c.checked = c.dataset.fuel === fk);   // show the fuel this vehicle uses
-    renderVehSel(); draw();
-  });
   // paste a price email / text message: find the diesel price (pence per litre, or £ per litre), and a "valid until" date if there is one
   function parsePrice(text) {
     const t = String(text).replace(/\s+/g, " ");
@@ -865,19 +828,19 @@
     if (dm) { const y = dm[3] ? (dm[3].length === 2 ? "20" + dm[3] : dm[3]) : String(new Date().getFullYear()); const d = `${y}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`; if (!isNaN(new Date(d))) until = d; }
     return { p: Math.round(p * 100) / 100, inc, until };
   }
-  let stTab = "prices", vEdit = null;
+  let stTab = "prices";
   function openSettings(tab) { if (tab) stTab = tab; $("settings").hidden = false; renderSettings(); }
   function renderSettings() {
     document.querySelectorAll("#settings .stabs button").forEach(b => b.classList.toggle("on", b.dataset.st === stTab));
     $("stPrices").hidden = stTab !== "prices"; $("stVeh").hidden = stTab !== "veh"; $("stBackup").hidden = stTab !== "backup";
-    if (stTab === "prices") renderPricesTab(); else if (stTab === "veh") renderVehTab(); else renderBackupTab();
+    if (stTab === "prices") renderPricesTab(); else if (stTab === "veh") renderMpgTab(); else renderBackupTab();
   }
-  // ---- Export / import: move your settings (card prices, hidden cards, vehicles, filters, provider) to another device ----
+  // ---- Export / import: move your settings (card prices, hidden cards, MPG, filters, provider) to another device ----
   function renderBackupTab() {
-    const nV = (prefs.vehicles || []).length, nP = Object.keys(cardPrices()).length;
+    const nP = Object.keys(cardPrices()).length;
     $("stBackup").innerHTML = `<p class="note">Your settings are saved in this browser only. Export them to a file to keep a copy, or to move them to
       another phone or computer – then open the map there, come to this tab and import the file.</p>
-      <div class="setrow"><b>Export</b><div class="note" style="margin:4px 0">Saves your card prices (${nP}), hidden cards, vehicles (${nV}), card provider and filter choices.</div>
+      <div class="setrow"><b>Export</b><div class="note" style="margin:4px 0">Saves your card prices (${nP}), hidden cards, MPG, card provider and filter choices.</div>
         <div class="brow2"><button class="primary" id="bkExport">⬇ Export my settings</button></div></div>
       <div class="setrow"><b>Import</b><div class="note" style="margin:4px 0">Replaces the settings on this device with the ones in the file.</div>
         <div class="brow2"><input type="file" id="bkFile" accept=".json,application/json"><button id="bkImport" disabled>Import</button></div>
@@ -897,7 +860,7 @@
         const d = JSON.parse(await f.text());
         if (!d || d.app !== "atlantis-fuel-map" || d.kind !== "settings" || typeof d.prefs !== "object") throw new Error();
         picked = d; $("bkImport").disabled = false;
-        $("bkMsg").textContent = `File from ${/^\d{4}-\d\d-\d\d/.test(String(d.exported)) ? niceDate(String(d.exported).slice(0, 10)) : "an earlier export"}: ${Object.keys(d.prefs.cardPrices || {}).length} card prices, ${(d.prefs.vehicles || []).length} vehicles. Press Import to use it.`;
+        $("bkMsg").textContent = `File from ${/^\d{4}-\d\d-\d\d/.test(String(d.exported)) ? niceDate(String(d.exported).slice(0, 10)) : "an earlier export"}: ${Object.keys(d.prefs.cardPrices || {}).length} card prices${+d.prefs.mpg > 0 ? ", " + d.prefs.mpg + " mpg" : ""}. Press Import to use it.`;
       } catch (e) { $("bkMsg").textContent = "That isn't a fuel map settings file."; }
     };
     $("bkImport").onclick = () => {
@@ -948,49 +911,16 @@
     }
     if (e.target.matches("[data-useprice]")) setCardPrice(cid, parseFloat(row.querySelector("[data-price]").value), row.querySelector("[data-until]").value);
   });
-  const VFIELDS = [["reg", "Registration *", "text"], ["name", "Nickname (optional)", "text"], ["make", "Make", "text"], ["model", "Model", "text"],
-    ["year", "Year", "number"], ["type", "Type", VTYPES], ["fuel", "Fuel", VFUELS], ["cc", "Engine size (cc)", "number"], ["gvw", "Gross weight / GVW (kg)", "number"],
-    ["euro", "Euro emissions", ["", "Euro 6", "Euro 5", "Euro 4", "Euro 3 or older", "Zero emission"]], ["co2", "CO₂ (g/km)", "number"],
-    ["mot", "MOT expiry", "date"], ["tax", "Tax expiry", "date"], ["mpg", "Your own MPG (optional)", "number"]];
-  function renderVehTab() {
-    const vs = vehicles(), t = todayStr(), soon = d => d && d <= addDays(t, 30);
-    const ed = vEdit ? vs.find(v => v.id === vEdit) || {} : { type: "Artic HGV", fuel: "Diesel" };
-    $("stVeh").innerHTML = `<p class="note">Add the vehicles you run. Pick one in the filter to see the approximate <b>cost per mile</b> at each station (pump price, and your card price + surcharge).
-      Look up the details on GOV.UK (<a href="https://vehicleenquiry.service.gov.uk/" target="_blank" rel="noopener">tax, CO₂, Euro, weight</a> ·
-      <a href="https://www.gov.uk/check-mot-history" target="_blank" rel="noopener">MOT history</a>) and copy them in.</p>` +
-      vs.map(v => `<div class="vrow" data-vid="${esc(v.id)}"><div class="vt"><span class="reg">${esc(v.reg)}</span><b>${esc(v.name || [v.make, v.model].filter(Boolean).join(" ") || v.type || "")}</b>
-        <div class="acts"><button class="lnk" data-vedit>Edit</button><button class="lnk" data-vdel style="color:#b42318">Remove</button></div></div>
-        <div class="vd">${[v.year, v.type, v.fuel, v.cc ? (+v.cc).toLocaleString() + " cc" : "", v.gvw ? (+v.gvw).toLocaleString() + " kg GVW" : "", v.euro, v.co2 ? v.co2 + " g/km CO₂" : ""].filter(Boolean).map(esc).join(" · ")}<br>
-          ${v.mot ? `MOT <span class="${soon(v.mot) ? "bad" : "ok"}">${v.mot < t ? "EXPIRED" : "until"} ${niceDate(v.mot)}</span> · ` : ""}${v.tax ? `Tax <span class="${soon(v.tax) ? "bad" : "ok"}">${v.tax < t ? "EXPIRED" : "until"} ${niceDate(v.tax)}</span> · ` : ""}
-          ${v.fuel === "Electric" ? "Electric" : `<b>${vehMpg(v)}</b> mpg${+v.mpg > 0 ? "" : " (estimate)"}`}</div></div>`).join("") +
-      `<div class="vrow"><b>${vEdit ? "Edit vehicle" : "Add a vehicle"}</b><div class="vform">` +
-      VFIELDS.map(([k, label, kind]) => `<label>${label}${Array.isArray(kind) ? `<select data-vf="${k}">${kind.map(o => `<option${(ed[k] || "") === o ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`
-        : `<input data-vf="${k}" type="${kind}"${kind === "number" ? ' inputmode="decimal" min="0"' : ""} value="${esc(ed[k] || "")}"${k === "reg" ? ' style="text-transform:uppercase" placeholder="AB12 CDE"' : ""}>`}</label>`).join("") +
-      `<div class="est" id="vEst"></div>
-       <div class="full"><button class="primary" id="vSave">${vEdit ? "Save changes" : "Add vehicle"}</button>${vEdit ? ' <button id="vCancel">Cancel</button>' : ""}</div></div></div>`;
-    const showEst = () => { const v = readVForm(); $("vEst").innerHTML = v.fuel === "Electric" ? "Electric vehicle – no MPG." : `Estimated <b>${estMpg(v)}</b> mpg from its type, weight and engine${+v.mpg > 0 ? ` – using your figure of <b>${+v.mpg}</b> mpg` : ""}.`; };
-    $("stVeh").querySelector(".vform").addEventListener("input", showEst); showEst();
-    $("vSave").onclick = () => {
-      const v = readVForm(); if (!v.reg) { $("vEst").innerHTML = '<span style="color:#b42318">Please enter the registration.</span>'; return; }
-      const vs2 = vehicles().slice();
-      if (vEdit) { const i = vs2.findIndex(x => x.id === vEdit); if (i >= 0) vs2[i] = Object.assign({}, vs2[i], v); }
-      else vs2.push(Object.assign({ id: Date.now().toString(36) }, v));
-      vEdit = null; savePrefs({ vehicles: vs2 }); renderVehSel(); renderVehTab(); draw();
-    };
-    if ($("vCancel")) $("vCancel").onclick = () => { vEdit = null; renderVehTab(); };
+  function renderMpgTab() {
+    const m = myMpg();
+    $("stVeh").innerHTML = `<p class="note">Enter your vehicle's average <b>miles per gallon</b> and each station shows the approximate <b>cost per mile</b> –
+      at the pump, and with your card price + surcharge. It uses the fuel you've ticked (diesel if neither is ticked).</p>
+      <div class="setrow"><div class="pin"><label>Your MPG <input type="number" id="mpgIn" inputmode="decimal" min="0" step="0.1" value="${m || ""}" placeholder="e.g. 9.5"></label>
+        <button class="primary" id="mpgSave">Save</button>${m ? '<button class="lnk" id="mpgClear">Clear</button>' : ""}</div>
+        <div class="note" style="margin:6px 0 0">${m ? `Using <b>${m}</b> mpg.` : "No MPG set – cost per mile is hidden."}</div></div>`;
+    $("mpgSave").onclick = () => { const v = parseFloat($("mpgIn").value); savePrefs({ mpg: v > 0 ? Math.round(v * 10) / 10 : 0 }); renderMpgTab(); draw(); };
+    if ($("mpgClear")) $("mpgClear").onclick = () => { savePrefs({ mpg: 0 }); renderMpgTab(); draw(); };
   }
-  function readVForm() {
-    const v = {}; document.querySelectorAll("#stVeh [data-vf]").forEach(el => v[el.dataset.vf] = el.value.trim());
-    v.reg = v.reg.toUpperCase().replace(/\s+/g, " "); return v;
-  }
-  $("stVeh").addEventListener("click", e => {
-    const row = e.target.closest("[data-vid]"); if (!row) return; const id = row.dataset.vid;
-    if (e.target.matches("[data-vedit]")) { vEdit = id; renderVehTab(); $("stVeh").querySelector(".vform").scrollIntoView({ behavior: "smooth" }); }
-    if (e.target.matches("[data-vdel]")) {
-      const vs2 = vehicles().filter(v => v.id !== id), part = { vehicles: vs2 }; if (prefs.vehicle === id) part.vehicle = "";
-      savePrefs(part); renderVehSel(); renderVehTab(); draw();
-    }
-  });
   $("mySettings").onclick = () => openSettings();
   $("closeSettings").onclick = () => $("settings").hidden = true;
   $("settings").addEventListener("click", e => { if (e.target === $("settings")) $("settings").hidden = true; });
@@ -1012,7 +942,7 @@
       return;
     }
     if (!providers.some(p => p.id === selProvider)) selProvider = OTHER.id;
-    useProvider(); renderCardChips(); renderProviders(); renderVehSel(); draw();
+    useProvider(); renderCardChips(); renderProviders(); draw();
     locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
     $("meta").innerHTML = `${(meta.count || 0).toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
