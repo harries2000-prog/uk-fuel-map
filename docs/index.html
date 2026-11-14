@@ -132,7 +132,7 @@
   .crow { display:flex; flex-wrap:wrap; align-items:center; gap:4px; padding:3px 8px; font-size:13px; border-top:1px solid #eef1f4; }
   .crow .cprice { flex-basis:100%; display:grid; grid-template-columns:1fr auto auto; gap:0 10px; margin:1px 0 2px 37px; font-size:11.5px; color:#445; font-variant-numeric:tabular-nums; }
   .crow .cprice b { color:#000; text-align:right; } .crow .cprice i { font-style:normal; color:#6b7684; text-align:right; } .crow .cprice .tot { border-top:1px solid #dfe5ea; padding-top:1px; }
-  .crow .cname { font-weight:600; display:flex; flex-direction:column; line-height:1.15; }
+  .crow .cname { font-weight:600; display:flex; flex-direction:column; line-height:1.15; flex:1; min-width:0; }
   .crow .cgrp { font-weight:400; font-size:10.5px; color:#7a8591; }
   .crow .csur { margin-left:auto; font-variant-numeric:tabular-nums; color:#1e7a3c; font-weight:600; }
   .crow.sel { background:#eef8f1; }
@@ -943,7 +943,7 @@
     if (p == null) return `<div class="cprice">${Object.entries(x.f).map(([k, v]) => row("Your " + fuelLabel(k).toLowerCase(), v)).join("")}</div>`;
     const tot = p + sur;
     return `<div class="cprice">${row("Your " + fuelLabel(fk).toLowerCase(), p)}${sur ? row("+ surcharge", sur) + row("Total", tot, "tot") : ""}` +
-      `${mpg ? `<span>Per mile (${mpg} mpg)</span><b>${ppm(tot, mpg).toFixed(1)}p ex</b><i>${ppm(incV(tot), mpg).toFixed(1)}p inc</i>` : ""}</div>`;
+      `${mpg ? `<span>Per mile</span><b>${ppm(tot, mpg).toFixed(1)}p ex</b><i>${ppm(incV(tot), mpg).toFixed(1)}p inc</i>` : ""}</div>`;
   }
   // paste a price email / text message: find a price for each fuel it mentions (pence per litre, or £ per litre), and a "valid until" date
   function parsePrice(text) {
