@@ -77,6 +77,7 @@
   #drawer label.small { display:flex; align-items:center; gap:6px; font-size:12px; color:#445; margin-top:6px; cursor:pointer; }
   .dot { width:11px; height:11px; border-radius:50%; display:inline-block; border:1.5px solid #fff; box-shadow:0 0 0 1px #0004; flex:none; }
   #meta { font-size:12px; color:#556; margin-top:6px; line-height:1.4; }
+  #disclaimer { font-size:11px; color:#6b7684; margin-top:8px; line-height:1.4; }
   #listinfo { font-size:12px; margin-top:6px; }
   #listinfo a { color:#0b62c4; cursor:pointer; }
   #status { top:calc(var(--bar) + 8px); left:50%; transform:translateX(-50%); max-width:360px; display:none; z-index:1004; }
@@ -300,6 +301,7 @@
   <label class="small"><input type="checkbox" id="showClosed"> Show temporarily closed (<span id="c-grey"></span>)</label>
   <div id="listinfo"></div>
   <div id="meta">Loading…</div>
+  <div id="disclaimer">Prices, fuel card sites and surcharges come from third-party sources and may be out of date or wrong. Atlantis Transport Ltd accepts no responsibility for the accuracy of this information – please check with the site or your card provider before relying on it.</div>
 </aside>
 <div id="scrim"></div>
 
@@ -333,7 +335,7 @@
   }).fitBounds([[49.9, -8.2], [60.9, 1.8]]);
   L.control.zoom({ position: "topleft" }).addTo(map);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Prices: GOV.UK Fuel Finder (OGL v3.0)'
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Prices: GOV.UK Fuel Finder (OGL v3.0) · Data for guidance only – accuracy not guaranteed'
   }).addTo(map);
 
   const canvas = L.canvas({ padding: 0.3, tolerance: L.Browser.mobile ? 14 : 8 });
