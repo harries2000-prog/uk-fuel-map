@@ -37,9 +37,9 @@
   button { font:inherit; padding:7px 10px; border-radius:8px; border:1px solid #ccd; background:#fff; cursor:pointer; }
   button:hover { background:#f1f4f7; }
   #drawer .lh { font-size:12px; color:#556; margin:12px 0 5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; }
-  .chips { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+  .chips { display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; }
   .chip { cursor:pointer; --c:#111; }
-  .chip.c-unl { --c:#00843d; } .chip.c-adblue { --c:#0067b1; }
+  .chip.c-unl { --c:#00843d; } .chip.c-adblue { --c:#0067b1; } .chip.c-ev { --c:#0f8f8a; }
   .chip input { position:absolute; opacity:0; pointer-events:none; }
   .chip span { display:flex; align-items:center; justify-content:center; gap:5px; padding:7px 4px; border-radius:8px; font-size:13px;
                font-weight:700; border:2px solid var(--c); color:var(--c); background:#fff; user-select:none; white-space:nowrap; }
@@ -157,6 +157,50 @@
   .cchip.on { border-color:var(--brand); background:#fff8d6; }
   .cchip.on::after { content:"✓"; position:absolute; top:2px; right:5px; width:16px; height:16px; line-height:16px; text-align:center; border-radius:50%; font-size:11px; font-weight:800; color:var(--accent); background:var(--brand); }
   .cchip.off { opacity:.45; cursor:default; }
+  /* my settings / vehicles / cost per mile */
+  #mySettings { width:100%; margin-top:6px; font-weight:700; background:#fff; border:2px solid #000; }
+  #mySettings:hover { background:#fff8d6; }
+  #vehBox select { width:100%; padding:7px; border-radius:8px; border:1px solid #ccd; font:inherit; }
+  #vehInfo { font-size:12px; color:#556; margin-top:4px; }
+  #cardHint { font-size:12px; color:#6b7684; margin-top:5px; }
+  .cchip .cp { font-size:10.5px; color:#000; background:#ffe058; border-radius:4px; padding:0 4px; font-weight:700; }
+  .cpm { background:#000; color:#fff; border-radius:6px; padding:5px 8px; margin:4px 0; font-size:13px; }
+  .cpm b { color:#ffe058; } .cpm small { color:#ccc; }
+  .crow .cyp { font-weight:400; font-size:10.5px; color:#000; }
+  .evk { display:flex; align-items:center; gap:5px; font-size:12px; color:#445; margin-top:6px; }
+  .evpop h3 { margin:0 0 2px; font-size:15px; } .evpop .sub { color:#556; font-size:12px; }
+  .evpop .spd { display:inline-block; background:#0f8f8a; color:#fff; border-radius:5px; padding:1px 6px; font-size:12px; font-weight:700; margin:5px 0; }
+  #settings { position:fixed; inset:0; z-index:3000; background:#0007; display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:20px 10px; }
+  #settings[hidden] { display:none; }
+  #settings .sbox { background:#fff; border-radius:12px; width:100%; max-width:640px; box-shadow:0 10px 40px #0006; overflow:hidden; }
+  #settings .shead { display:flex; align-items:center; gap:10px; background:#000; color:#fff; border-bottom:3px solid #ffe058; padding:10px 14px; }
+  #settings .shead b { font-size:16px; } #settings .shead small { color:#bbb; }
+  #settings .shead button { margin-left:auto; background:none; border:0; color:#fff; font-size:20px; }
+  #settings .stabs { display:flex; gap:6px; padding:10px 14px 0; }
+  #settings .stabs button.on { background:#000; color:#ffe058; border-color:#000; }
+  #settings .spane { padding:10px 14px 16px; font-size:14px; }
+  #settings .note { font-size:12.5px; color:#5a6572; margin:4px 0 10px; }
+  .srow { border:1px solid #e1e6ec; border-radius:10px; padding:8px 10px; margin:8px 0; }
+  .srow .top { display:flex; align-items:center; gap:10px; }
+  .srow .top img { width:56px; height:35px; object-fit:cover; border-radius:4px; box-shadow:0 1px 2px #0003; }
+  .srow .top .nm { display:flex; flex-direction:column; line-height:1.2; }
+  .srow .top .nm small { color:#6b7684; font-size:12px; } .srow .top .nm small.exp { color:#b42318; }
+  .srow .top label { margin-left:auto; font-size:12.5px; display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  .srow .pin { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:7px; font-size:13px; }
+  .srow input[type=number] { width:90px; } .srow input, .vform input, .vform select { padding:6px 7px; border:1px solid #c5ccd5; border-radius:7px; font:inherit; font-size:14px; }
+  .srow .lnk, .vrow .lnk { background:none; border:0; color:#000; text-decoration:underline; text-decoration-color:#e0b800; text-decoration-thickness:2px; padding:4px 2px; font-size:13px; }
+  .srow textarea { width:100%; box-sizing:border-box; margin-top:6px; font:inherit; font-size:13px; padding:6px; border:1px solid #c5ccd5; border-radius:7px; }
+  .srow .pres { font-size:12.5px; margin-left:6px; }
+  .vrow { border:1px solid #e1e6ec; border-radius:10px; padding:8px 10px; margin:8px 0; font-size:13px; }
+  .vrow .vt { display:flex; align-items:center; gap:8px; } .vrow .reg { background:#ffe058; color:#000; font-weight:800; border-radius:4px; padding:2px 6px; letter-spacing:1px; border:1px solid #000; }
+  .vrow .vt .acts { margin-left:auto; display:flex; gap:4px; }
+  .vrow .vd { color:#445; margin-top:5px; line-height:1.5; }
+  .vrow .bad { color:#b42318; font-weight:700; } .vrow .ok { color:#1e7a3c; }
+  .vform { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  .vform label { display:flex; flex-direction:column; font-size:12px; font-weight:600; color:#445; gap:3px; }
+  .vform .full { grid-column:1 / -1; }
+  .vform .est { grid-column:1 / -1; background:#fff8d6; border-radius:8px; padding:7px 9px; font-size:13px; }
+  #settings .primary { background:#000; color:#ffe058; border-color:#000; font-weight:700; }
   #unmatched { position:absolute; z-index:1001; inset:40px 10px auto 10px; max-width:520px; max-height:70vh; overflow:auto; display:none; }
   #unmatched li { font-size:13px; }
   /* ---- phones ---- */
@@ -204,16 +248,25 @@
   <button id="locate" title="Show my location">📍</button>
 </header>
 <div id="map"></div>
+<div id="settings" hidden><div class="sbox">
+  <div class="shead"><b>My settings</b><small>Saved on this device only</small><button id="closeSettings" aria-label="Close">✕</button></div>
+  <div class="stabs"><button data-st="prices" class="on">Fuel card prices</button><button data-st="veh">My vehicles</button></div>
+  <div class="spane" id="stPrices"></div>
+  <div class="spane" id="stVeh" hidden></div>
+</div></div>
 <div id="status" class="panel"></div>
 
 <aside id="drawer">
   <div class="dhead">Filters<button id="closeMenu" aria-label="Close">✕</button></div>
+  <button id="mySettings">⚙ My settings – card prices &amp; vehicles</button>
   <div class="lh">Fuel <span class="hint">– stations with any ticked</span></div>
   <div class="chips">
     <label class="chip c-diesel"><input type="checkbox" data-fuel="diesel"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Diesel</span></label>
     <label class="chip c-unl"><input type="checkbox" data-fuel="unleaded"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 3h9a1 1 0 0 1 1 1v16h1v2H3v-2h1V4a1 1 0 0 1 1-1zm2 2v5h6V5zm9.3 1.3 1.4-1.4 3 3a1 1 0 0 1 .3.7V17a2.5 2.5 0 0 1-5 0v-3h-1v-2h2a1 1 0 0 1 1 1v4a.5.5 0 0 0 1 0v-5.6a2.5 2.5 0 0 1-1-2V7.7z"/></svg>Unleaded</span></label>
     <label class="chip c-adblue"><input type="checkbox" data-fuel="adblue"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5S5.5 10 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 10 12 2.5 12 2.5z"/></svg>AdBlue</span></label>
+    <label class="chip c-ev"><input type="checkbox" data-fuel="electric"><span><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>Electric</span></label>
   </div>
+  <div id="vehBox" hidden><div class="lh">My vehicle</div><select id="vehSel"></select><div id="vehInfo"></div></div>
   <div class="lh">Colour pumps by</div>
   <div class="seg" id="colourBy">
     <label><input type="radio" name="cby" value="price" checked><span>Pump price</span></label>
@@ -224,6 +277,7 @@
   <details id="provBox" hidden><summary>Card provider <span class="pcur" id="provCur"></span></summary><div id="provList"></div></details>
   <div class="lh" id="cardsHead">Fuel cards <span class="hint">– stations taking any ticked</span></div>
   <div id="cardChips" class="cchips"></div>
+  <div id="cardHint"></div>
   <div id="cardOpts" hidden>
     <label class="small"><input type="checkbox" id="showOthers"> Also show stations that don't take them</label>
     <label class="small"><input type="checkbox" id="hideNoHgv"> Hide sites marked “no HGVs”</label>
@@ -234,6 +288,7 @@
     <span id="k-amber"><i class="dot" style="background:var(--amber)"></i><em id="kl-amber">Fuel station</em> <b id="c-amber"></b></span>
     <span id="k-red"><i class="dot" style="background:var(--red)"></i><em id="kl-red">No HGVs</em> <b id="c-red"></b></span>
   </div>
+  <div class="evk" id="evKey" hidden><i class="dot" style="background:#0f8f8a"></i><em>EV charge point</em> <b id="c-ev"></b></div>
   <label class="small"><input type="checkbox" id="showClosed"> Show temporarily closed (<span id="c-grey"></span>)</label>
   <div id="listinfo"></div>
   <div id="meta">Loading…</div>
@@ -338,14 +393,17 @@
     renderCardChips();
   }
   function renderCardChips() {
-    const withList = cards.filter(hasList);
+    const withList = visibleCards(), cp = cardPrices();
+    for (const id of [...selCards]) if (!withList.some(c => c.id === id)) selCards.delete(id);
     $("cardsHead").hidden = $("cardChips").hidden = !withList.length;
+    $("cardHint").innerHTML = !cards.some(hasList) ? "" : Object.keys(cp).length ? "Showing the cards you've priced – change in ⚙ My settings."
+      : "Tip: add your weekly card prices in ⚙ My settings – then only your cards show here.";
     $("cardChips").innerHTML = withList.map(c => {
       const n = stations.filter(s => s.cards && s.cards[c.id]).length, has = c.rows.length > 0 || (c.surRows || []).length > 0;
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
         <input type="checkbox" data-card="${esc(c.id)}"${selCards.has(c.id) ? " checked" : ""}${has ? "" : " disabled"}>
         <img src="${esc(cardImg(c))}" alt=""><span class="cn">${esc(c.name)}</span>
-        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span></label>`;
+        <span class="cc">${has ? n.toLocaleString() + " sites" : "no list yet"}</span>${cp[c.id] ? `<span class="cp">${cp[c.id].p.toFixed(2)}p ex VAT</span>` : ""}</label>`;
     }).join("");
   }
   $("cardChips").addEventListener("change", e => {
@@ -395,7 +453,7 @@
     if ((card.surRows || []).length) for (const s of stations) { const h = s.cards[card.id]; if (h && !h.sur) h.noSur = true; }
   }
   const hasList = c => c.rows.length > 0 || (c.surRows || []).length > 0;
-  const chosenCards = () => cards.filter(c => selCards.has(c.id) && hasList(c));
+  const chosenCards = () => visibleCards().filter(c => selCards.has(c.id));
   function catFor(s, sel) {
     if (s.tc) return "grey";
     if (!sel.length) return "amber";
@@ -486,7 +544,10 @@
     } else {
       $("gSteps").hidden = true;
       $("gNone").parentNode.hidden = true; $("grad").querySelector(".gbar").hidden = false;
-      if (vals.length) { $("gMin").innerHTML = `Cheapest ${fmt(lo)} <small>(${exVat(lo)} ex VAT)</small>`; $("gMax").innerHTML = `Dearest ${fmt(hi)} <small>(${exVat(hi)} ex VAT)</small>`; }
+      if (vals.length) {
+        const v = curVehicle(), mpg = v && vehFuelKey(v) === gradInfo.fuel ? vehMpg(v) : 0, pm = x => mpg ? `<br><small>≈ ${ppm(x, mpg).toFixed(1)}p/mile</small>` : "";
+        $("gMin").innerHTML = `Cheapest ${fmt(lo)} <small>(${exVat(lo)} ex VAT)</small>${pm(lo)}`; $("gMax").innerHTML = `Dearest ${fmt(hi)} <small>(${exVat(hi)} ex VAT)</small>${pm(hi)}`;
+      }
     }
   }
   map.on("moveend", recolour);
@@ -497,7 +558,8 @@
     const want = {}; document.querySelectorAll("[data-fuel]").forEach(c => want[c.dataset.fuel] = c.checked);
     const sel = chosenCards(), showClosed = $("showClosed").checked;
     const onlyCard = sel.length > 0 && !$("showOthers").checked, hideNoHgv = sel.length > 0 && $("hideNoHgv").checked;
-    const anyFuel = want.diesel || want.unleaded || want.adblue;
+    const anyFuel = want.diesel || want.unleaded || want.adblue || want.electric;
+    drawEv(want.electric);
     const counts = { green:0, amber:0, red:0, grey:0 };
     // draw amber first so green/red sit on top where they overlap
     const order = { grey:0, red:1, amber:2, green:3 };   // card-takers drawn on top
@@ -507,7 +569,7 @@
     // colour mode
     const fuelOn = Object.keys(want).filter(k => want[k]);
     // pump price needs exactly one of Diesel / Unleaded (no AdBlue prices); surcharge needs one card that has surcharge data
-    const priceFuels = fuelOn.filter(f => f !== "adblue");
+    const priceFuels = fuelOn.filter(f => f !== "adblue" && f !== "electric");
     const priceOk = priceFuels.length === 1, surOk = sel.length === 1 && (sel[0].surRows || []).length > 0;
     const mode = cbyPref === "sur" && surOk ? "sur" : priceOk ? "price" : surOk ? "sur" : "none";
     const rP = document.querySelector('input[name="cby"][value="price"]'), rS = document.querySelector('input[name="cby"][value="sur"]');
@@ -572,7 +634,7 @@
       ctx.restore();
     }
   });
-  map.on("zoomend", () => { const r = radiusFor(map.getZoom()); markers.forEach(m => m.setRadius(r)); });
+  map.on("zoomend", () => { const r = radiusFor(map.getZoom()), re = Math.max(4, r * 0.62); markers.forEach(m => m.setRadius(r)); evLayer.eachLayer(m => m.setRadius(re)); });
 
   // Directions from the user's current position: Apple Maps on iPhone/iPad, the default
   // navigation app on Android (geo: link), Google Maps everywhere else.
@@ -603,7 +665,7 @@
     const accepted = cards.filter(c => s.cards[c.id]).sort((a, b) => isSel(b) - isSel(a));
     let cardHtml = accepted.map(c => {
       const r = s.cards[c.id];
-      return `<div class="crow${isSel(c) ? " sel" : ""}"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}${r.group ? `<small class="cgrp">${esc(r.group)}</small>` : ""}</span>` +
+      return `<div class="crow${isSel(c) ? " sel" : ""}"><img class="cimg" src="${esc(cardImg(c))}" alt=""><span class="cname">${esc(c.name)}${r.group ? `<small class="cgrp">${esc(r.group)}</small>` : ""}${cardPriceLine(c, r)}</span>` +
              `${r.hgv === false ? '<span class="tag r">No HGVs</span>' : r.hgv === true ? '<span class="tag g">HGV OK</span>' : ""}` +
              `<span class="csur">${r.sur ? esc(r.sur) : r.noSur ? "No surcharge" : "✓"}</span></div>`;
     }).join("");
@@ -623,7 +685,7 @@
     const logo = logos[FuelMap.brandKey(s.b)];
     return `<div class="pop"><div class="head"><img src="${esc(logo ? "logos/" + logo : FuelMap.GENERIC_LOGO)}" alt=""><div><h3>${esc(title(name))}</h3>
       <div class="sub">${brand ? esc(brand) + " · " : ""}${esc(title(s.a))}${s.c ? ", " + esc(title(s.c)) : ""} ${esc(s.pc)}</div></div></div>
-      ${sign}
+      ${sign}${pumpCostLine(s)}
       ${upd ? `<div class="sub" style="margin-top:4px">Prices updated ${esc(upd)}</div>` : ""}
       ${cardsBox}
       <div>${tags.join("")}</div>${hours}
@@ -773,6 +835,206 @@
   $("showClosed").addEventListener("change", draw);
 
   // ---------- branding (Admin → Branding) ----------
+  // ---------- EV charge points (data/ev.json, from Radius e-route; loaded only when Electric is ticked) ----------
+  const evLayer = L.layerGroup().addTo(map);
+  let evPoints = null, evLoading = false;
+  const EV_COL = "#0f8f8a", EV_SPEED = ["", "Slow", "Fast", "Rapid", "Ultra rapid"];
+  async function loadEv() {
+    if (evPoints || evLoading) return; evLoading = true; status("Loading EV charge points…");
+    try { const r = await fetch("data/ev.json?v=" + Date.now(), { cache: "no-store" }); evPoints = r.ok ? ((await r.json()).points || []) : []; }
+    catch (e) { evPoints = []; }
+    evLoading = false; status(evPoints.length ? "" : "No EV charge point data published yet.", 4000); draw();
+  }
+  function evPopup(p) {
+    return `<div class="evpop"><h3>${esc(p.n || "EV charge point")}</h3><div class="sub">${esc(p.o || "")}${p.a ? " · " + esc(p.a) : ""}</div>
+      ${p.s ? `<span class="spd">⚡ ${EV_SPEED[p.s]}</span>` : ""} <span class="sub">${p.k ? p.k + " connector" + (p.k > 1 ? "s" : "") : ""}${p.t ? " · " + esc(p.t) : ""}</span>
+      <div class="links" style="display:flex;margin-top:8px"><a class="nav" href="${navUrl({ y: p.y, x: p.x, n: p.n })}" target="_blank" rel="noopener" title="Directions" aria-label="Directions">${NAV_ICON}</a></div>
+      <div class="sub" style="font-size:10px;margin-top:4px">Source: Radius e-route</div></div>`;
+  }
+  function drawEv(on) {
+    evLayer.clearLayers(); $("evKey").hidden = !on;
+    if (!on) return;
+    if (!evPoints) { loadEv(); $("c-ev").textContent = "loading…"; return; }
+    const r = Math.max(4, radiusFor(map.getZoom()) * 0.62);
+    for (const p of evPoints) L.circleMarker([p.y, p.x], { renderer: canvas, radius: r, color: "#fff", weight: 1.5, fillColor: EV_COL, fillOpacity: 1 })
+      .bindPopup(() => evPopup(p), { maxWidth: 280 }).addTo(evLayer);
+    $("c-ev").textContent = evPoints.length.toLocaleString();
+  }
+
+  // ---------- My settings (this device only): weekly card prices, hidden cards, vehicles ----------
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  const addDays = (ymd, n) => { const t = new Date(ymd + "T12:00:00"); t.setDate(t.getDate() + n); return t.toISOString().slice(0, 10); };
+  const niceDate = ymd => new Date(ymd + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  // card prices are pence per litre EX VAT; each has an expiry date and is removed once it has passed
+  function cardPrices() {
+    const cp = Object.assign({}, prefs.cardPrices || {}), t = todayStr(); let gone = false;
+    for (const k of Object.keys(cp)) if (!cp[k] || !(cp[k].p > 0) || !cp[k].until || cp[k].until < t) { delete cp[k]; gone = true; }
+    if (gone) savePrefs({ cardPrices: cp });
+    return cp;
+  }
+  const hiddenCards = () => new Set(prefs.hiddenCards || []);
+  function visibleCards() {   // cards in the filter: not hidden, and only the priced ones once any are priced
+    const cp = cardPrices(), hid = hiddenCards(), base = cards.filter(c => hasList(c) && !hid.has(c.id)), priced = base.filter(c => cp[c.id]);
+    return priced.length ? priced : base;
+  }
+  // vehicles
+  const VTYPES = ["Car", "Van", "Rigid HGV", "Artic HGV", "Bus / coach", "Other"], VFUELS = ["Diesel", "Petrol", "Hybrid", "Electric"];
+  function estMpg(v) {   // rough, by weight first, then engine size; the user can type their own figure
+    if (v.fuel === "Electric") return 0;
+    const g = +v.gvw || 0, L_ = (+v.cc || 0) / 1000;
+    let m;
+    if (g >= 40000) m = 8.5; else if (g >= 32000) m = 9; else if (g >= 26000) m = 10; else if (g >= 18000) m = 11.5;
+    else if (g >= 12000) m = 13.5; else if (g >= 7500) m = 16; else if (g > 3500) m = 20;
+    else if (!g && v.type === "Artic HGV") m = 8.5; else if (!g && v.type === "Rigid HGV") m = 12; else if (!g && v.type === "Bus / coach") m = 9;
+    else if (v.type === "Van" || g > 2600) m = v.fuel === "Petrol" ? 27 : 36 - Math.max(0, (L_ || 2) - 2) * 4;
+    else m = v.fuel === "Petrol" ? 48 - Math.max(0, (L_ || 1.4) - 1.2) * 7 : 58 - Math.max(0, (L_ || 1.6) - 1.5) * 7;
+    if (v.fuel === "Hybrid") m *= 1.3;
+    return Math.max(5, Math.round(m * 10) / 10);
+  }
+  const vehMpg = v => +v.mpg > 0 ? +v.mpg : estMpg(v);
+  const vehicles = () => prefs.vehicles || [];
+  const curVehicle = () => vehicles().find(v => v.id === prefs.vehicle) || null;
+  const vehFuelKey = v => !v ? null : v.fuel === "Diesel" ? "diesel" : v.fuel === "Petrol" || v.fuel === "Hybrid" ? "unleaded" : v.fuel === "Electric" ? "electric" : null;
+  const ppm = (pence, mpg) => pence * 4.54609 / mpg;   // pence per litre → pence per mile
+  function pumpCostLine(s) {
+    const v = curVehicle(); if (!v) return "";
+    const fk = vehFuelKey(v), mpg = vehMpg(v), p = fk === "diesel" || fk === "unleaded" ? priceOf(s, fk) : null;
+    if (!mpg || p == null) return "";
+    return `<div class="cpm"><b>${esc(v.reg)}</b> ≈ <b>${ppm(p, mpg).toFixed(1)}p/mile</b> at the pump <small>(${ppm(p / 1.2, mpg).toFixed(1)}p ex VAT · ${mpg} mpg${+v.mpg > 0 ? "" : " est."})</small></div>`;
+  }
+  function cardPriceLine(c, r) {
+    const cp = cardPrices()[c.id]; if (!cp) return "";
+    const sur = parseFloat(String(r.sur || "").replace(/[^0-9.]/g, "")) || 0, tot = cp.p + sur, v = curVehicle(), mpg = v ? vehMpg(v) : 0;
+    return `<small class="cyp">Your price ${cp.p.toFixed(2)}p${sur ? " + " + sur.toFixed(2) + "p" : ""} ex VAT${mpg && vehFuelKey(v) !== "electric" ? ` ≈ <b>${ppm(tot, mpg).toFixed(1)}p/mile</b>` : ""}</small>`;
+  }
+  function renderVehSel() {
+    const vs = vehicles(), v = curVehicle();
+    $("vehBox").hidden = !vs.length;
+    $("vehSel").innerHTML = '<option value="">No vehicle</option>' + vs.map(x => `<option value="${esc(x.id)}"${v && x.id === v.id ? " selected" : ""}>${esc(x.reg)}${x.name ? " – " + esc(x.name) : x.make ? " – " + esc(x.make + " " + (x.model || "")) : ""}</option>`).join("");
+    $("vehInfo").innerHTML = !v ? "Pick one to see the cost per mile at each station." : vehMpg(v) ? `≈ <b>${vehMpg(v)}</b> mpg${+v.mpg > 0 ? "" : " (estimate)"} – cost per mile shows in each station.` : "Electric – showing charge points.";
+  }
+  $("vehSel").addEventListener("change", () => {
+    savePrefs({ vehicle: $("vehSel").value });
+    const fk = vehFuelKey(curVehicle());
+    if (fk) document.querySelectorAll("[data-fuel]").forEach(c => c.checked = c.dataset.fuel === fk);   // show the fuel this vehicle uses
+    renderVehSel(); draw();
+  });
+  // paste a price email / text message: find the diesel price (pence per litre, or £ per litre), and a "valid until" date if there is one
+  function parsePrice(text) {
+    const t = String(text).replace(/\s+/g, " ");
+    const inc = /\binc(?:l(?:uding|\.)?)?\s*vat\b/i.test(t) && !/\bex(?:cl(?:uding|\.)?)?\s*vat\b/i.test(t);
+    const re = /(£\s*)?(\d{1,3}(?:\.\d{1,4})?)\s*(ppl\b|p\/l\b|p per l(?:itre)?\b|pence\b|p\b)?/gi, cands = [];
+    let m;
+    while ((m = re.exec(t))) {
+      let v = parseFloat(m[2]); if (!isFinite(v)) continue;
+      if (m[1] || (v > 0.5 && v < 3 && m[2].includes("."))) v *= 100;
+      if (v < 50 || v > 400) continue;
+      const ctx = t.slice(Math.max(0, m.index - 45), m.index + 45).toLowerCase();
+      let sc = 0; if (/diesel|derv|\bdery\b/.test(ctx)) sc += 3; if (m[3]) sc += 2; if (m[1]) sc += 1; if (/adblue|petrol|unleaded|e10|super/.test(ctx)) sc -= 2;
+      cands.push({ v, sc });
+    }
+    if (!cands.length) return null;
+    cands.sort((a, b) => b.sc - a.sc);
+    let p = cands[0].v; if (inc) p /= 1.2;
+    let until = null;
+    const dm = t.match(/(?:until|till|to|expires?|valid (?:to|until)|ending|-)\s*(?:\w+day\s*)?(\d{1,2})(?:st|nd|rd|th)?[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/i);
+    if (dm) { const y = dm[3] ? (dm[3].length === 2 ? "20" + dm[3] : dm[3]) : String(new Date().getFullYear()); const d = `${y}-${dm[2].padStart(2, "0")}-${dm[1].padStart(2, "0")}`; if (!isNaN(new Date(d))) until = d; }
+    return { p: Math.round(p * 100) / 100, inc, until };
+  }
+  let stTab = "prices", vEdit = null;
+  function openSettings(tab) { if (tab) stTab = tab; $("settings").hidden = false; renderSettings(); }
+  function renderSettings() {
+    document.querySelectorAll("#settings .stabs button").forEach(b => b.classList.toggle("on", b.dataset.st === stTab));
+    $("stPrices").hidden = stTab !== "prices"; $("stVeh").hidden = stTab !== "veh";
+    if (stTab === "prices") renderPricesTab(); else renderVehTab();
+  }
+  function renderPricesTab() {
+    const cp = cardPrices(), hid = hiddenCards(), list = cards.filter(hasList), t = todayStr();
+    $("stPrices").innerHTML = `<p class="note">Type this week's price for each card you use (<b>pence per litre, ex VAT</b>), or paste the email / text your provider sends.
+      Each price has an expiry date – when it passes, the price is removed so you always enter the latest one. Once any card has a price, only priced cards show in the filter. Untick <b>Show</b> to hide a card altogether.</p>` +
+      list.map(c => {
+        const pr = cp[c.id], soon = pr && pr.until <= addDays(t, 1);
+        return `<div class="srow" data-cid="${esc(c.id)}"><div class="top"><img src="${esc(cardImg(c))}" alt=""><div class="nm"><b>${esc(c.name)}</b>
+          <small class="${soon ? "exp" : ""}">${pr ? `Your price ${pr.p.toFixed(2)}p ex VAT · ${soon ? "expires" : "until"} ${niceDate(pr.until)}` : "No price"}</small></div>
+          <label><input type="checkbox" data-show${hid.has(c.id) ? "" : " checked"}> Show</label></div>
+          <div class="pin"><input type="number" step="0.01" min="0" inputmode="decimal" data-price placeholder="e.g. 128.50" value="${pr ? pr.p : ""}"> p/litre ex VAT · valid until
+            <input type="date" data-until min="${t}" value="${pr ? pr.until : addDays(t, 7)}">${pr ? ' <button class="lnk" data-clear>Clear</button>' : ""}</div>
+          <button class="lnk" data-paste>Paste price email / text</button>
+          <div data-pastebox hidden><textarea rows="3" placeholder="Paste the message from your card provider here"></textarea>
+            <button data-parse>Find the price</button><span class="pres"></span></div></div>`;
+      }).join("");
+  }
+  function setCardPrice(cid, p, until) {
+    const cp = cardPrices();
+    if (p > 0) cp[cid] = { p: Math.round(p * 100) / 100, from: todayStr(), until: until && until >= todayStr() ? until : addDays(todayStr(), 7) };
+    else delete cp[cid];
+    savePrefs({ cardPrices: cp }); renderCardChips(); draw(); renderPricesTab();
+  }
+  $("stPrices").addEventListener("change", e => {
+    const row = e.target.closest("[data-cid]"); if (!row) return; const cid = row.dataset.cid;
+    if (e.target.matches("[data-show]")) { const h = hiddenCards(); e.target.checked ? h.delete(cid) : h.add(cid); savePrefs({ hiddenCards: [...h] }); renderCardChips(); draw(); return; }
+    if (e.target.matches("[data-price],[data-until]")) setCardPrice(cid, parseFloat(row.querySelector("[data-price]").value), row.querySelector("[data-until]").value);
+  });
+  $("stPrices").addEventListener("click", e => {
+    const row = e.target.closest("[data-cid]"); if (!row) return; const cid = row.dataset.cid;
+    if (e.target.matches("[data-clear]")) setCardPrice(cid, 0);
+    if (e.target.matches("[data-paste]")) { const b = row.querySelector("[data-pastebox]"); b.hidden = !b.hidden; if (!b.hidden) b.querySelector("textarea").focus(); }
+    if (e.target.matches("[data-parse]")) {
+      const r = parsePrice(row.querySelector("textarea").value), out = row.querySelector(".pres");
+      if (!r) { out.innerHTML = '<span style="color:#b42318">Couldn\'t find a price – type it in the box above.</span>'; return; }
+      row.querySelector("[data-price]").value = r.p; if (r.until) row.querySelector("[data-until]").value = r.until;
+      out.innerHTML = `Found <b>${r.p.toFixed(2)}p</b> ex VAT${r.inc ? " (converted from inc VAT)" : ""}${r.until ? " until " + niceDate(r.until) : ""} – check it, then <button data-useprice>Save</button>`;
+    }
+    if (e.target.matches("[data-useprice]")) setCardPrice(cid, parseFloat(row.querySelector("[data-price]").value), row.querySelector("[data-until]").value);
+  });
+  const VFIELDS = [["reg", "Registration *", "text"], ["name", "Nickname (optional)", "text"], ["make", "Make", "text"], ["model", "Model", "text"],
+    ["year", "Year", "number"], ["type", "Type", VTYPES], ["fuel", "Fuel", VFUELS], ["cc", "Engine size (cc)", "number"], ["gvw", "Gross weight / GVW (kg)", "number"],
+    ["euro", "Euro emissions", ["", "Euro 6", "Euro 5", "Euro 4", "Euro 3 or older", "Zero emission"]], ["co2", "CO₂ (g/km)", "number"],
+    ["mot", "MOT expiry", "date"], ["tax", "Tax expiry", "date"], ["mpg", "Your own MPG (optional)", "number"]];
+  function renderVehTab() {
+    const vs = vehicles(), t = todayStr(), soon = d => d && d <= addDays(t, 30);
+    const ed = vEdit ? vs.find(v => v.id === vEdit) || {} : { type: "Artic HGV", fuel: "Diesel" };
+    $("stVeh").innerHTML = `<p class="note">Add the vehicles you run. Pick one in the filter to see the approximate <b>cost per mile</b> at each station (pump price, and your card price + surcharge).
+      Look up the details on GOV.UK (<a href="https://vehicleenquiry.service.gov.uk/" target="_blank" rel="noopener">tax, CO₂, Euro, weight</a> ·
+      <a href="https://www.gov.uk/check-mot-history" target="_blank" rel="noopener">MOT history</a>) and copy them in.</p>` +
+      vs.map(v => `<div class="vrow" data-vid="${esc(v.id)}"><div class="vt"><span class="reg">${esc(v.reg)}</span><b>${esc(v.name || [v.make, v.model].filter(Boolean).join(" ") || v.type || "")}</b>
+        <div class="acts"><button class="lnk" data-vedit>Edit</button><button class="lnk" data-vdel style="color:#b42318">Remove</button></div></div>
+        <div class="vd">${[v.year, v.type, v.fuel, v.cc ? (+v.cc).toLocaleString() + " cc" : "", v.gvw ? (+v.gvw).toLocaleString() + " kg GVW" : "", v.euro, v.co2 ? v.co2 + " g/km CO₂" : ""].filter(Boolean).map(esc).join(" · ")}<br>
+          ${v.mot ? `MOT <span class="${soon(v.mot) ? "bad" : "ok"}">${v.mot < t ? "EXPIRED" : "until"} ${niceDate(v.mot)}</span> · ` : ""}${v.tax ? `Tax <span class="${soon(v.tax) ? "bad" : "ok"}">${v.tax < t ? "EXPIRED" : "until"} ${niceDate(v.tax)}</span> · ` : ""}
+          ${v.fuel === "Electric" ? "Electric" : `<b>${vehMpg(v)}</b> mpg${+v.mpg > 0 ? "" : " (estimate)"}`}</div></div>`).join("") +
+      `<div class="vrow"><b>${vEdit ? "Edit vehicle" : "Add a vehicle"}</b><div class="vform">` +
+      VFIELDS.map(([k, label, kind]) => `<label>${label}${Array.isArray(kind) ? `<select data-vf="${k}">${kind.map(o => `<option${(ed[k] || "") === o ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`
+        : `<input data-vf="${k}" type="${kind}"${kind === "number" ? ' inputmode="decimal" min="0"' : ""} value="${esc(ed[k] || "")}"${k === "reg" ? ' style="text-transform:uppercase" placeholder="AB12 CDE"' : ""}>`}</label>`).join("") +
+      `<div class="est" id="vEst"></div>
+       <div class="full"><button class="primary" id="vSave">${vEdit ? "Save changes" : "Add vehicle"}</button>${vEdit ? ' <button id="vCancel">Cancel</button>' : ""}</div></div></div>`;
+    const showEst = () => { const v = readVForm(); $("vEst").innerHTML = v.fuel === "Electric" ? "Electric vehicle – no MPG." : `Estimated <b>${estMpg(v)}</b> mpg from its type, weight and engine${+v.mpg > 0 ? ` – using your figure of <b>${+v.mpg}</b> mpg` : ""}.`; };
+    $("stVeh").querySelector(".vform").addEventListener("input", showEst); showEst();
+    $("vSave").onclick = () => {
+      const v = readVForm(); if (!v.reg) { $("vEst").innerHTML = '<span style="color:#b42318">Please enter the registration.</span>'; return; }
+      const vs2 = vehicles().slice();
+      if (vEdit) { const i = vs2.findIndex(x => x.id === vEdit); if (i >= 0) vs2[i] = Object.assign({}, vs2[i], v); }
+      else vs2.push(Object.assign({ id: Date.now().toString(36) }, v));
+      vEdit = null; savePrefs({ vehicles: vs2 }); renderVehSel(); renderVehTab(); draw();
+    };
+    if ($("vCancel")) $("vCancel").onclick = () => { vEdit = null; renderVehTab(); };
+  }
+  function readVForm() {
+    const v = {}; document.querySelectorAll("#stVeh [data-vf]").forEach(el => v[el.dataset.vf] = el.value.trim());
+    v.reg = v.reg.toUpperCase().replace(/\s+/g, " "); return v;
+  }
+  $("stVeh").addEventListener("click", e => {
+    const row = e.target.closest("[data-vid]"); if (!row) return; const id = row.dataset.vid;
+    if (e.target.matches("[data-vedit]")) { vEdit = id; renderVehTab(); $("stVeh").querySelector(".vform").scrollIntoView({ behavior: "smooth" }); }
+    if (e.target.matches("[data-vdel]")) {
+      const vs2 = vehicles().filter(v => v.id !== id), part = { vehicles: vs2 }; if (prefs.vehicle === id) part.vehicle = "";
+      savePrefs(part); renderVehSel(); renderVehTab(); draw();
+    }
+  });
+  $("mySettings").onclick = () => openSettings();
+  $("closeSettings").onclick = () => $("settings").hidden = true;
+  $("settings").addEventListener("click", e => { if (e.target === $("settings")) $("settings").hidden = true; });
+  document.querySelectorAll("#settings .stabs button").forEach(b => b.onclick = () => { stTab = b.dataset.st; renderSettings(); });
+
   // ---------- start ----------
   (async function start() {
     fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(r => r.ok ? r.json() : null).then(t => {
@@ -794,7 +1056,7 @@
       $("meta").textContent = "No price data published yet – use Admin to upload a Fuel Finder CSV.";
       return;
     }
-    matchCards(); renderProviders(); draw();
+    matchCards(); renderProviders(); renderVehSel(); draw();
     locate(true);
     const when = new Date(meta.published || meta.updated).toLocaleString("en-GB", { weekday:"short", day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
     $("meta").innerHTML = `${stations.length.toLocaleString()} stations · prices from ${esc(when)}<br>Source: GOV.UK Fuel Finder`;
