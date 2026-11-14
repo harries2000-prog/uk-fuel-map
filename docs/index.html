@@ -667,6 +667,7 @@
     document.documentElement.style.setProperty("--brand", c);
     document.documentElement.style.setProperty("--brand-ink", lum > 160 ? "#1d232b" : "#ffffff");
     $("brandName").textContent = b.name || "";
+    $("brandName").hidden = b.showName === false;   // Admin → Branding: logo may already include the name
     document.title = (b.name ? b.name + " – " : "") + "Fuel Map";
     const img = $("brandLogo");
     if (b.logo) { img.src = b.logo; img.alt = b.name || ""; img.hidden = false; $("brand").classList.add("has-logo"); }
