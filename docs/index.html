@@ -112,7 +112,9 @@
   .pp > summary .ps.no { color:#9a6200; }
   .pp .pb { padding:4px 8px 6px; }
   .pp .cards { border:0; margin:0; border-radius:0; max-height:200px; overflow-y:auto; }
-  .leaflet-popup-scrolled { border:0 !important; padding-right:4px; scrollbar-width:thin; }
+  /* popup never taller than this – scrolls instead (also when a panel is opened) */
+  .leaflet-popup-content { max-height:min(480px, calc(100vh - 170px)); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:2px; }
+  @media (max-width:600px) { .leaflet-popup-content { max-height:min(380px, calc(100vh - 150px)); } }
   .pp .cards .ch { position:sticky; top:0; z-index:1; }
   .f-diesel  { background:#111; }
   .f-pdiesel { background:#111; color:#f2c94c; }
@@ -402,9 +404,9 @@
   function renderCardChips() {
     const withList = visibleCards(), cp = cardPrices();
     for (const id of [...selCards]) if (!withList.some(c => c.id === id)) selCards.delete(id);
-    $("cardsHead").hidden = $("cardChips").hidden = !withList.length;
-    $("cardHint").innerHTML = !cards.some(hasList) ? "" : Object.keys(cp).length ? "Showing the cards you've priced – change in ⚙ My settings."
-      : "Tip: add your weekly card prices in ⚙ My settings – then only your cards show here.";
+    $("cardsHead").hidden = !cards.some(hasList); $("cardChips").hidden = !withList.length;
+    $("cardHint").innerHTML = !cards.some(hasList) ? "" : withList.length ? "Showing the cards you've priced – change in ⚙ My settings."
+      : "No cards yet – enter this week's price for your cards in <b>⚙ My settings</b> and they'll show here.";
     $("cardChips").innerHTML = withList.map(c => {
       const n = stations.filter(s => s.cards && s.cards[c.id]).length, has = c.rows.length > 0 || (c.surRows || []).length > 0;
       return `<label class="cchip${selCards.has(c.id) ? " on" : ""}${has ? "" : " off"}" title="${esc(c.name)}">
@@ -602,7 +604,7 @@
         renderer: canvas, radius: radiusFor(map.getZoom()), fillColor: s.cat === "grey" ? COLORS.grey : COLORS.amber
       });
       if (s.cat !== "grey") shown++;
-      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 240, minWidth: 220, maxHeight: Math.min(380, innerHeight - 140), autoPanPadding: [8, 60] } : { maxWidth: 280, minWidth: 260, maxHeight: Math.min(480, innerHeight - 160) });
+      m.bindPopup(() => popup(s, sel), SMALL ? { maxWidth: 240, minWidth: 220, autoPanPadding: [8, 60] } : { maxWidth: 280, minWidth: 260 });
       m.s = s; m.addTo(layer); markers.push(m);
     }
     Object.keys(counts).forEach(k => $("c-" + k).textContent = counts[k].toLocaleString());
@@ -888,9 +890,9 @@
     return cp;
   }
   const hiddenCards = () => new Set(prefs.hiddenCards || []);
-  function visibleCards() {   // cards in the filter: not hidden, and only the priced ones once any are priced
-    const cp = cardPrices(), hid = hiddenCards(), base = cards.filter(c => hasList(c) && !hid.has(c.id)), priced = base.filter(c => cp[c.id]);
-    return priced.length ? priced : base;
+  function visibleCards() {   // cards in the filter: only ones with a current price, and not hidden
+    const cp = cardPrices(), hid = hiddenCards();
+    return cards.filter(c => hasList(c) && !hid.has(c.id) && cp[c.id]);
   }
   // vehicles
   const VTYPES = ["Car", "Van", "Rigid HGV", "Artic HGV", "Bus / coach", "Other"], VFUELS = ["Diesel", "Petrol", "Hybrid", "Electric"];
@@ -966,7 +968,7 @@
   function renderPricesTab() {
     const cp = cardPrices(), hid = hiddenCards(), list = cards.filter(hasList), t = todayStr();
     $("stPrices").innerHTML = `<p class="note">Type this week's price for each card you use (<b>pence per litre, ex VAT</b>), or paste the email / text your provider sends.
-      Each price has an expiry date – when it passes, the price is removed so you always enter the latest one. Once any card has a price, only priced cards show in the filter. Untick <b>Show</b> to hide a card altogether.</p>` +
+      Each price has an expiry date – when it passes, the price is removed so you always enter the latest one. A card only shows in the filter while it has a current price. Untick <b>Show</b> to hide a card even when it's priced.</p>` +
       list.map(c => {
         const pr = cp[c.id], soon = pr && pr.until <= addDays(t, 1);
         return `<div class="setrow" data-cid="${esc(c.id)}"><div class="top"><img src="${esc(cardImg(c))}" alt=""><div class="nm"><b>${esc(c.name)}</b>
